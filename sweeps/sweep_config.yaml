@@ -1,0 +1,11 @@
+program: train.py
+method: random
+metric:
+  name: mse
+  goal: minimize
+parameters:
+  learning_rate:
+    min: 0.001
+    max: 0.1
+  epochs:
+    values: [10, 20, 30] 
