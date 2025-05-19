@@ -86,6 +86,21 @@ Enter partial sweep ID: abc<TAB>  # Shows all sweep IDs starting with "abc"
 Select sweep ID:                  # If multiple matches, shows interactive dialog
 ```
 
+Kill all sweeps and agents:
+```bash
+easysweeps kill-all
+```
+
+This command will:
+- Find all sweep sessions from your sweep log
+- Kill all associated tmux sessions
+- Clean up all agent windows
+
+Use the `--force` flag to skip confirmation:
+```bash
+easysweeps kill-all --force
+```
+
 Show status of all sweeps and agents:
 ```bash
 easysweeps status

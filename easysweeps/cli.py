@@ -265,6 +265,53 @@ def status():
         logger.error(f"Failed to show status: {e}")
         raise click.ClickException(str(e))
     
+@cli.command()
+@click.option('--force', is_flag=True, help='Force kill without confirmation')
+def kill_all(force):
+    """Kill all sweep agents and their tmux sessions.
+    
+    This command will:
+    - Find all sweep sessions from the sweep log
+    - Kill all associated tmux sessions
+    - Clean up all agent windows
+    """
+    try:
+        # Get all sweep IDs
+        sweep_ids = get_sweep_ids()
+        if not sweep_ids:
+            raise click.ClickException("No sweep IDs found in the log file")
 
+        # Confirm unless --force is used
+        if not force:
+            click.echo("The following sweep sessions will be killed:")
+            for sweep_id in sweep_ids:
+                click.echo(f"  - {sweep_id}")
+            if not click.confirm(f"\nThis will kill all {len(sweep_ids)} sweep sessions. Continue?"):
+                return
+
+        server = libtmux.Server()
+        killed_count = 0
+
+        for sweep_id in sweep_ids:
+            # Find all sessions that start with this sweep_id
+            sessions = server.find_where({"session_name": sweep_id})
+            if sessions:
+                try:
+                    sessions.kill_session()
+                    killed_count += 1
+                    click.echo(f"Killed session for sweep {sweep_id}")
+                except Exception as e:
+                    logger.error(f"Failed to kill session for sweep {sweep_id}: {e}")
+                    continue
+
+        if killed_count > 0:
+            click.echo(f"\nSuccessfully killed {killed_count} sweep sessions")
+        else:
+            click.echo("\nNo running sweep sessions found")
+            
+    except Exception as e:
+        logger.error(f"Failed to kill all sweeps: {e}")
+        raise click.ClickException(str(e))
+    
 if __name__ == '__main__':
     cli() 

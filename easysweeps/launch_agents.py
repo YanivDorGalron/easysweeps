@@ -50,7 +50,7 @@ def launch_agents(args):
             for gpu in gpus_to_use:
                 log_file = agent_log_dir / f"{name}_gpu{gpu}.log"  # Modified to include GPU in log filename
 
-                session_name = f"{sweep_id}_gpu{gpu}"  # Modified to include GPU in session name
+                session_name = sweep_id  # Modified to include GPU in session name
                 window_name = f"gpu{gpu}"
 
                 # Get or create session for the sweep_id
