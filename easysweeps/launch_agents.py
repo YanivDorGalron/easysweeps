@@ -69,8 +69,6 @@ def launch_agents(args):
                         sweep_sessions[session_name] = session
                         logger.info(f"Created new session for sweep {sweep_id} on GPU {gpu}")
 
-                        # Remove the default window (named after session)
-                        session.attached_window.kill_window()
                     except Exception as e:
                         logger.error(f"Failed to create new session: {e}")
                         continue
