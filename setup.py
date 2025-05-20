@@ -7,7 +7,7 @@ with open("README.md", encoding="utf-8") as f:
 
 setup(
     name="easysweeps",
-    version="0.1.4",
+    version="0.1.3",
     packages=find_packages(),
     install_requires=[
         "click>=8.0.0",
@@ -18,8 +18,6 @@ setup(
     ],
     extras_require={
         "dev": [
-            "pytest>=7.0.0",
-            "pytest-cov>=4.0.0",
             "bump2version>=1.0.1",
             "twine>=4.0.0",
             "build>=1.0.0",
@@ -32,7 +30,7 @@ setup(
         ],
     },
     author="Yaniv Galron",
-    author_email="",  # Add your email here
+    author_email="yanivdorgalron@gmail.com",  # Add your email /
     description="A tool for automating Weights & Biases sweep creation and management",
     long_description=long_description,
     long_description_content_type="text/markdown",
