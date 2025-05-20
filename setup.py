@@ -20,6 +20,8 @@ setup(
             "pytest>=7.0.0",
             "pytest-cov>=4.0.0",
             "bump2version>=1.0.1",
+            "twine>=4.0.0",
+            "build>=1.0.0",
         ],
     },
     entry_points={
