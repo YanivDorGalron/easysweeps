@@ -1,6 +1,6 @@
 # EasySweeps
 
-A command-line tool for automating Weights & Biases sweeps across multiple GPUs.
+A command-line tool for automating Weights & Biases sweeps across multiple GPUs. Built with the help of [Hadar Sinai](https://github.com/hadarsi320).
 
 ## Features
 
