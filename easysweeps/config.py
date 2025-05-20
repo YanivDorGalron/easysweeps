@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 import yaml
+import subprocess
+import shutil
 
 class Config:
     """Configuration manager for wandb sweep automation"""
@@ -10,12 +12,51 @@ class Config:
         self.defaults = {
             "sweep_dir": "sweeps",
             "agent_log_dir": "agent_logs",
-            "conda_env": "pool",
+            "conda_env": "wandb_sweeps",
             "entity": "yaniv_team",
-            "project": "Explainability",
-            "conda_path": "~/anaconda3/etc/profile.d/conda.sh",
+            "project": self._detect_project_name(),
+            "conda_path": self._detect_conda_path(),
         }
         self.config = self._load_config()
+
+    def _detect_project_name(self) -> str:
+        """Detect the project name from the current directory"""
+        return Path.cwd().name
+
+    def _detect_conda_path(self) -> str:
+        """Detect the conda.sh path by checking common locations"""
+        # Common conda installation paths
+        common_paths = [
+            "~/anaconda3/etc/profile.d/conda.sh",
+            "~/miniconda3/etc/profile.d/conda.sh",
+            "~/miniforge3/etc/profile.d/conda.sh",
+            "/opt/anaconda3/etc/profile.d/conda.sh",
+            "/opt/miniconda3/etc/profile.d/conda.sh",
+            "/opt/miniforge3/etc/profile.d/conda.sh",
+        ]
+        
+        # Check if conda is in PATH
+        if shutil.which("conda"):
+            try:
+                # Get conda installation path
+                conda_path = subprocess.check_output(
+                    ["conda", "info", "--base"],
+                    text=True
+                ).strip()
+                conda_sh = Path(conda_path) / "etc/profile.d/conda.sh"
+                if conda_sh.exists():
+                    return str(conda_sh)
+            except:
+                pass
+
+        # Check common paths
+        for path in common_paths:
+            expanded_path = Path(path).expanduser()
+            if expanded_path.exists():
+                return str(expanded_path)
+
+        # If not found, return default
+        return "~/anaconda3/etc/profile.d/conda.sh"
 
     def _load_config(self) -> dict:
         """Load configuration from file or use defaults"""

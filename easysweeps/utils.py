@@ -7,6 +7,11 @@ from .config import config
 
 def setup_logging(log_dir: Path = Path("logs"), level=logging.INFO):
     """Set up logging configuration"""
+    # Check if root logger already has handlers
+    root_logger = logging.getLogger()
+    if root_logger.handlers:
+        return logging.getLogger('wandb_sweep_automation')
+
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / "wandb_sweep.log"
 
@@ -30,7 +35,6 @@ def setup_logging(log_dir: Path = Path("logs"), level=logging.INFO):
     console_handler.setFormatter(console_formatter)
 
     # Setup root logger
-    root_logger = logging.getLogger()
     root_logger.setLevel(level)
     root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
