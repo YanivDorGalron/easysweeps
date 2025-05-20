@@ -5,7 +5,7 @@ from pathlib import Path
 import libtmux
 import logging
 from .config import config
-from .utils import setup_logging
+from .utils import setup_logging, copy_project_for_sweep
 
 logger = logging.getLogger(__name__)
 
@@ -83,11 +83,23 @@ def launch_agents(args):
                     logger.error(f"Failed to create new window: {e}")
                     continue
 
+                # Handle project copying if enabled
+                project_dir = Path.cwd()
+                if config.get("enable_project_copy", False):
+                    try:
+                        base_dir = Path(config.get("project_copy_base_dir"))
+                        project_dir = copy_project_for_sweep(sweep_id, base_dir)
+                        logger.info(f"Using project copy at {project_dir}")
+                    except Exception as e:
+                        logger.error(f"Failed to copy project for sweep {sweep_id}: {e}")
+                        continue
+
                 # Create the command
                 conda_path = config.get("conda_path")
                 cmd = (
                     f"bash -c '"
                     f"echo \"Starting wandb agent for sweep {sweep_id} on GPU {gpu}\" && "
+                    f"cd {project_dir} && "  # Change to the project directory
                     f"source {conda_path} && "
                     f"echo \"Activating conda environment {args.conda_env}\" && "
                     f"conda activate {args.conda_env} && "

@@ -78,8 +78,14 @@ def agent(gpu_list, all_gpus):
     across the specified GPUs. Each agent runs in its own tmux window for better
     process management and monitoring.
 
+    The command uses the following configuration from config.yaml:
+    - conda_env: The conda environment to use
+    - entity: The wandb entity name
+    - project: The wandb project name
+    - sweep_dir: Directory containing sweep configurations
+
     Example:
-        easysweeps agent --conda-env my_env --gpu-list 0,1 --entity my_team --project my_project
+        easysweeps agent --gpu-list 0,1 --all-gpus
     """
     try:
         # Parse GPU list

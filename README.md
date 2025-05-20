@@ -7,20 +7,17 @@ A command-line tool for automating Weights & Biases sweeps across multiple GPUs.
 - Create multiple sweeps from a template and variants configuration
 - Launch sweep agents in tmux sessions
 - Kill specific sweep agents on specific GPUs
-- Comprehensive logging and monitoring
-- Automatic GPU management and allocation
-- Intelligent sweep ID autocompletion
-- Support for both grid and random sweep methods
+- Create a copy of the code for each agent
+<!-- - Comprehensive logging and monitoring -->
+<!-- - Automatic GPU management and allocation -->
+<!-- - Intelligent sweep ID autocompletion -->
+<!-- - Support for both grid and random sweep methods -->
 
 ## Installation
 
 ```bash
 # Clone the repository
-git clone <repository-url>
-cd wandb_sweep_automation
-
-# Install in development mode
-pip install -e .
+pip install easysweeps
 ```
 
 ## Configuration
@@ -67,7 +64,7 @@ param2: ["value3", "value4"]
 
 Create the sweeps:
 ```bash
-easysweeps sweep
+es sweep
 ```
 
 ### 2. Launch Agents
@@ -75,12 +72,12 @@ easysweeps sweep
 Launch agents on specific GPUs:
 ```bash
 # Launch on GPUs 0 and 1
-easysweeps agent --gpu-list 0,1 
+es agent --gpu-list 0,1 
 ```
 
 Launch agents on all specified GPUs for each sweep:
 ```bash
-easysweeps agent --gpu-list 0,1 --all-gpus
+es agent --gpu-list 0,1 --all-gpus
 ```
 
 ### 3. Manage Agents
@@ -88,10 +85,7 @@ easysweeps agent --gpu-list 0,1 --all-gpus
 Kill an agent:
 ```bash
 # Kill specific agent
-easysweeps kill sweep_id --gpu 0
-
-# Kill all agents for a sweep
-easysweeps kill sweep_id --all-gpus
+es kill sweep_id --gpu 0
 ```
 
 The `kill` command features intelligent sweep ID autocompletion:
@@ -102,7 +96,7 @@ The `kill` command features intelligent sweep ID autocompletion:
 
 Example interaction:
 ```bash
-$ easysweeps kill
+$ es kill
 Enter partial sweep ID: abc<TAB>  # Shows all sweep IDs starting with "abc"
 Select sweep ID:                  # If multiple matches, shows interactive dialog
 ```
@@ -110,15 +104,15 @@ Select sweep ID:                  # If multiple matches, shows interactive dialo
 Kill all sweeps and agents:
 ```bash
 # Interactive mode (asks for confirmation)
-easysweeps kill-all
+es kill-all
 
 # Force kill without confirmation
-easysweeps kill-all --force
+es kill-all --force
 ```
 
 Show status of all sweeps and agents:
 ```bash
-easysweeps status
+es status
 ```
 
 This command displays a comprehensive status of all sweeps and their agents:
@@ -126,23 +120,6 @@ This command displays a comprehensive status of all sweeps and their agents:
 - Currently running agents in tmux sessions and windows
 - GPU assignments for each agent
 - Status of each agent (running/stopped)
-
-### Command Aliases
-
-EasySweeps can be used with the shorter alias `es`:
-```bash
-# These commands are equivalent
-easysweeps sweep
-es sweep
-
-# And these
-easysweeps agent --gpu-list 0,1
-es agent --gpu-list 0,1
-
-# And these
-easysweeps kill sweep_id --gpu 0
-es kill sweep_id --gpu 0
-```
 
 ## Tmux Session Management
 

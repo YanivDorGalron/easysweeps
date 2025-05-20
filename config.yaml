@@ -3,4 +3,8 @@ agent_log_dir: "agent_logs"
 conda_env: "wandb_sweeps"
 entity: "yaniv_team"  # Replace with your wandb username
 project: "wandb_sweep_automation" # Replace with your wandb project name
-conda_path: "~/anaconda3/etc/profile.d/conda.sh"  # Adjust if your conda path is different 
+conda_path: "~/anaconda3/etc/profile.d/conda.sh"  # Adjust if your conda path is different
+
+# Project copying configuration
+enable_project_copy: false  # Set to true to enable copying project for each agent
+project_copy_base_dir: "~/wandb_projects"  # Base directory where project copies will be created 
