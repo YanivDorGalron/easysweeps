@@ -86,12 +86,17 @@ def launch_agents(args):
                 # Create the command
                 conda_path = config.get("conda_path")
                 cmd = (
-                    f"nohup bash -c '"
+                    f"bash -c '"
+                    f"echo \"Starting wandb agent for sweep {sweep_id} on GPU {gpu}\" && "
                     f"source {conda_path} && "
+                    f"echo \"Activating conda environment {args.conda_env}\" && "
                     f"conda activate {args.conda_env} && "
-                    f"CUDA_VISIBLE_DEVICES={gpu} PYTHONPATH=$PWD "
+                    f"echo \"Setting CUDA_VISIBLE_DEVICES={gpu} and PYTHONPATH=$PWD\" && "
+                    f"export CUDA_VISIBLE_DEVICES={gpu} && "
+                    f"export PYTHONPATH=$PWD && "
+                    f"echo \"Launching wandb agent for {args.entity}/{args.project}/{sweep_id}\" && "
                     f"wandb agent {args.entity}/{args.project}/{sweep_id} "
-                    f"> {log_file} 2>&1 &'"
+                    f"> {log_file} 2>&1'"
                 )
 
                 # Send the command to the pane

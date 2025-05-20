@@ -8,16 +8,24 @@ A command-line tool for automating Weights & Biases sweeps across multiple GPUs.
 - Launch sweep agents in tmux sessions
 - Kill specific sweep agents on specific GPUs
 - Comprehensive logging and monitoring
+- Automatic GPU management and allocation
+- Intelligent sweep ID autocompletion
+- Support for both grid and random sweep methods
 
 ## Installation
 
 ```bash
+# Clone the repository
+git clone <repository-url>
+cd wandb_sweep_automation
+
+# Install in development mode
 pip install -e .
 ```
 
 ## Configuration
 
-Create a `config.yaml` file:
+Create a `config.yaml` file in your project root:
 
 ```yaml
 sweep_dir: "sweeps"          # Directory for sweep configurations
@@ -25,8 +33,16 @@ agent_log_dir: "agent_logs"  # Directory for agent logs
 conda_env: "your_env"        # Your conda environment
 entity: "your_entity"        # W&B entity name
 project: "your_project"      # W&B project name
-conda_path: "~/anaconda3/etc/profile.d/conda.sh"
+conda_path: "~/anaconda3/etc/profile.d/conda.sh"  # Path to conda.sh
 ```
+
+## Prerequisites
+
+- Python 3.7 or higher
+- Weights & Biases account and API key
+- tmux installed on your system
+- CUDA-capable GPUs (if using GPU acceleration)
+- Conda environment with required packages
 
 ## Usage
 
@@ -58,6 +74,7 @@ easysweeps sweep
 
 Launch agents on specific GPUs:
 ```bash
+# Launch on GPUs 0 and 1
 easysweeps agent --gpu-list 0,1 
 ```
 
@@ -70,7 +87,11 @@ easysweeps agent --gpu-list 0,1 --all-gpus
 
 Kill an agent:
 ```bash
+# Kill specific agent
 easysweeps kill sweep_id --gpu 0
+
+# Kill all agents for a sweep
+easysweeps kill sweep_id --all-gpus
 ```
 
 The `kill` command features intelligent sweep ID autocompletion:
@@ -88,16 +109,10 @@ Select sweep ID:                  # If multiple matches, shows interactive dialo
 
 Kill all sweeps and agents:
 ```bash
+# Interactive mode (asks for confirmation)
 easysweeps kill-all
-```
 
-This command will:
-- Find all sweep sessions from your sweep log
-- Kill all associated tmux sessions
-- Clean up all agent windows
-
-Use the `--force` flag to skip confirmation:
-```bash
+# Force kill without confirmation
 easysweeps kill-all --force
 ```
 
@@ -111,7 +126,6 @@ This command displays a comprehensive status of all sweeps and their agents:
 - Currently running agents in tmux sessions and windows
 - GPU assignments for each agent
 - Status of each agent (running/stopped)
-
 
 ### Command Aliases
 
@@ -156,6 +170,11 @@ EasySweeps uses tmux to manage sweep agents. Here's how it works:
    - When you kill an agent, its window is removed
    - If it's the last window in a session, the entire session is cleaned up
    - All agent output is logged to files in the `agent_log_dir`
+
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 

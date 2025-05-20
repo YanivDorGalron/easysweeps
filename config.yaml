@@ -2,5 +2,5 @@ sweep_dir: "sweeps"
 agent_log_dir: "agent_logs"
 conda_env: "wandb_sweeps"
 entity: "yaniv_team"  # Replace with your wandb username
-project: "sweep_example"
+project: "wandb_sweep_automation" # Replace with your wandb project name
 conda_path: "~/anaconda3/etc/profile.d/conda.sh"  # Adjust if your conda path is different 

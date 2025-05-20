@@ -69,13 +69,9 @@ def sweep(sweep_dir, template, variants):
         raise click.ClickException(str(e))
 
 @cli.command()
-@click.option('--conda-env', help='Name of conda environment to use (default: from config.yaml)')
-@click.option('--sweep-log-dir', type=click.Path(), help='Directory containing sweep logs (default: from config.yaml)')
 @click.option('--gpu-list', help='Comma-separated list of GPU indices to use (e.g., "0,1,2")')
-@click.option('--entity', help='Wandb entity name (default: from config.yaml)')
-@click.option('--project', help='Wandb project name (default: from config.yaml)')
 @click.option('--all-gpus', is_flag=True, help='Launch all sweeps on all GPUs instead of distributing one per GPU')
-def agent(conda_env, sweep_log_dir, gpu_list, entity, project, all_gpus):
+def agent(gpu_list, all_gpus):
     """Launch wandb sweep agents in tmux sessions.
 
     This command launches wandb sweep agents in tmux sessions, distributing them
@@ -97,11 +93,11 @@ def agent(conda_env, sweep_log_dir, gpu_list, entity, project, all_gpus):
 
         # Use provided values or defaults from config
         args = type('Args', (), {
-            'conda_env': conda_env or config.get("conda_env"),
-            'sweep_log_dir': sweep_log_dir or config.get("sweep_dir"),
+            'conda_env': config.get("conda_env"),
+            'sweep_log_dir': config.get("sweep_dir"),
             'gpu_list': gpu_list,
-            'entity': entity or config.get("entity"),
-            'project': project or config.get("project"),
+            'entity': config.get("entity"),
+            'project': config.get("project"),
             'all_gpus': all_gpus
         })
 
@@ -271,9 +267,11 @@ def kill_all(force):
     """Kill all sweep agents and their tmux sessions.
     
     This command will:
-    - Find all sweep sessions from the sweep log
+    - Find all sweep sessions from your sweep log
     - Kill all associated tmux sessions
     - Clean up all agent windows
+    
+    Use the --force flag to skip confirmation.
     """
     try:
         # Get all sweep IDs
@@ -289,9 +287,10 @@ def kill_all(force):
             if not click.confirm(f"\nThis will kill all {len(sweep_ids)} sweep sessions. Continue?"):
                 return
 
+        # Kill all sessions
         server = libtmux.Server()
         killed_count = 0
-
+        
         for sweep_id in sweep_ids:
             # Find all sessions that start with this sweep_id
             sessions = server.find_where({"session_name": sweep_id})

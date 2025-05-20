@@ -33,6 +33,6 @@ ENV/
 *.swo
 
 # Project specific
-sweeps/
+wandb/
 agent_logs/
 *.log 
