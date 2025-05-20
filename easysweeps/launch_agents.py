@@ -10,7 +10,32 @@ from .utils import setup_logging, copy_project_for_sweep
 logger = logging.getLogger(__name__)
 
 def launch_agents(args):
-    """Launch wandb sweep agents with the given arguments"""
+    """Launch wandb sweep agents with the given arguments.
+    
+    This function launches Weights & Biases sweep agents in tmux sessions across specified GPUs.
+    It handles the following tasks:
+    1. Sets up logging and creates necessary directories
+    2. Reads sweep IDs from the sweep log file
+    3. Creates tmux sessions and windows for each sweep
+    4. Launches wandb agents with proper GPU assignments
+    5. Logs all agent launches to a CSV file
+    
+    Args:
+        args: An argparse.Namespace object containing:
+            - sweep_log_dir: Directory containing the sweep log file
+            - gpu_list: List of GPU indices to use
+            - all_gpus: Boolean indicating whether to use all GPUs for each sweep
+            - conda_env: Name of the conda environment to use
+            - entity: W&B entity name
+            - project: W&B project name
+    
+    Raises:
+        FileNotFoundError: If the sweep log file is not found
+        Exception: For various errors during agent launch process
+    
+    Returns:
+        None
+    """
     # Set up logging
     log_dir = Path(config.get("agent_log_dir"))
     setup_logging(log_dir)
@@ -135,4 +160,3 @@ def launch_agents(args):
     except Exception as e:
         logger.error(f"Failed to write launch summary: {e}")
         raise
-

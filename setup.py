@@ -19,6 +19,7 @@ setup(
         "dev": [
             "pytest>=7.0.0",
             "pytest-cov>=4.0.0",
+            "bump2version>=1.0.1",
         ],
     },
     entry_points={
