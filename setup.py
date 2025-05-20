@@ -14,6 +14,7 @@ setup(
         "libtmux>=0.15.0",
         "pyyaml>=6.0",
         "wandb>=0.15.0",
+        "prompt_toolkit>=3.0.0",
     ],
     extras_require={
         "dev": [
