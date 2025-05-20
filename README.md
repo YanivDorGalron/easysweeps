@@ -1,6 +1,6 @@
 # EasySweeps
 
-A command-line tool for automating Weights & Biases sweeps across multiple GPUs. Built with the help of [Hadar Sinai](https://github.com/hadarsi320).
+A command-line tool I created for automating Weights & Biases sweeps across multiple GPUs. Made by [Yaniv Galron](https://github.com/YanivDorGalron) with the help of [Hadar Sinai](https://github.com/hadarsi320).
 
 ⭐ Starring the repository would be greatly appreciated! ⭐
 
@@ -75,7 +75,7 @@ num_layers: [2, 4] # for each num_layers a new sweep will be created
 
 Create the sweeps:
 ```bash
-es sweep
+ez sweep
 ```
 
 ### 2. Launch Agents
@@ -83,13 +83,13 @@ es sweep
 Launch agents on specific GPUs:
 ```bash
 # Launch on GPUs 0 and 1
-es agent --gpu-list 0,1 # This command distributes sweeps across GPUs in a round-robin fashion
+ez agent --gpu-list 0,1 # This command distributes sweeps across GPUs in a round-robin fashion
 
 # Launch multiple agents per sweep on GPU 0
-es agent --gpu-list 0 --agents-per-sweep 3
+ez agent --gpu-list 0 --agents-per-sweep 3
 
 # Launch all sweeps on all specified GPUs with multiple agents
-es agent --gpu-list 0,1 --all-gpus --agents-per-sweep 2
+ez agent --gpu-list 0,1 --all-gpus --agents-per-sweep 2
 ```
 
 The `--agents-per-sweep` option allows you to run multiple agents for each sweep on the same GPU.
@@ -110,6 +110,18 @@ The project copies will be created in the directory specified by `project_copy_b
 - Maintains the same directory structure
 - Preserves all your code and configuration files
 
+By default, if a project directory already exists, EasySweeps will reuse it instead of creating a new copy. If you want to force a fresh copy of the project, you can use the `--force-recopy` flag:
+
+```bash
+# Force recopy project directories even if they already exist
+ez agent --gpu-list 0 --force-recopy
+```
+
+This is particularly useful when:
+- You've made changes to your code and want to ensure all agents use the latest version
+- You want to start fresh with clean project copies
+- You suspect the existing copies might be corrupted or outdated
+
 Example directory structure:
 ```
 ~/wandb_projects/
@@ -129,7 +141,7 @@ Example directory structure:
 Kill an agent:
 ```bash
 # Kill specific agent
-es kill sweep_id --gpu 0
+ez kill sweep_id --gpu 0
 ```
 
 The `kill` command features intelligent sweep ID autocompletion:
@@ -140,7 +152,7 @@ The `kill` command features intelligent sweep ID autocompletion:
 
 Example interaction:
 ```bash
-$ es kill
+$ ez kill
 Enter partial sweep ID: abc<TAB>  # Shows all sweep IDs starting with "abc"
 Select sweep ID:                  # If multiple matches, shows interactive dialog
 ```
@@ -148,15 +160,15 @@ Select sweep ID:                  # If multiple matches, shows interactive dialo
 Kill all sweeps and agents:
 ```bash
 # Interactive mode (asks for confirmation)
-es kill-all
+ez kill-all
 
 # Force kill without confirmation
-es kill-all --force
+ez kill-all --force
 ```
 
 Show status of all sweeps and agents:
 ```bash
-es status
+ez status
 ```
 
 This command displays a comprehensive status of all sweeps and their agents:
@@ -164,34 +176,6 @@ This command displays a comprehensive status of all sweeps and their agents:
 - Currently running agents in tmux sessions and windows
 - GPU assignments for each agent
 - Status of each agent (running/stopped)
-
-## Tmux Session Management
-
-EasySweeps uses tmux to manage sweep agents. Here's how it works:
-
-1. **Sessions**: Each sweep gets its own tmux session named after its sweep ID
-   - Example: `abc123_gpu0` for sweep ID `abc123` running on GPU 0
-
-2. **Windows**: Each GPU running a sweep agent gets its own window
-   - Windows are named `gpu0`, `gpu1`, etc.
-   - Each window runs a single sweep agent
-
-3. **Viewing Sessions**:
-   ```bash
-   # List all tmux sessions
-   tmux ls
-   
-   # Attach to a specific session
-   tmux attach -t session_name
-   
-   # Detach from session (press Ctrl+B, then D)
-   ```
-
-4. **Session Cleanup**:
-   - When you kill an agent, its window is removed
-   - If it's the last window in a session, the entire session is cleaned up
-   - All agent output is logged to files in the `agent_log_dir`
-
 
 ## Contributing
 

@@ -1,4 +1,5 @@
 import click
+import time
 from pathlib import Path
 import libtmux
 from . import launch_agents
@@ -6,7 +7,7 @@ from . import launch_sweeps
 import yaml
 import logging
 from .config import config
-from .utils import setup_logging
+from .utils import setup_logging, send_ctrl_c, send_ctrl_c_window
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit.shortcuts import radiolist_dialog
@@ -72,7 +73,8 @@ def sweep(sweep_dir, template, variants):
 @click.option('--gpu-list', help='Comma-separated list of GPU indices to use (e.g., "0,1,2")')
 @click.option('--all-gpus', is_flag=True, help='Launch all sweeps on all GPUs instead of distributing one per GPU')
 @click.option('--agents-per-sweep', type=int, default=1, help='Number of agents to launch per sweep on each GPU')
-def agent(gpu_list, all_gpus, agents_per_sweep):
+@click.option('--force-recopy', is_flag=True, help='Force recopy project directories even if they already exist')
+def agent(gpu_list, all_gpus, agents_per_sweep, force_recopy):
     """Launch wandb sweep agents in tmux sessions.
 
     This command launches wandb sweep agents in tmux sessions, distributing them
@@ -88,6 +90,7 @@ def agent(gpu_list, all_gpus, agents_per_sweep):
     Example:
         easysweeps agent --gpu-list 0,1 --all-gpus
         easysweeps agent --gpu-list 0 --agents-per-sweep 3
+        easysweeps agent --gpu-list 0 --force-recopy  # Force recopy project directories
     """
     try:
         # Parse GPU list
@@ -107,7 +110,8 @@ def agent(gpu_list, all_gpus, agents_per_sweep):
             'entity': config.get("entity"),
             'project': config.get("project"),
             'all_gpus': all_gpus,
-            'agents_per_sweep': agents_per_sweep
+            'agents_per_sweep': agents_per_sweep,
+            'force_recopy': force_recopy
         })
 
         if not args.gpu_list:
@@ -192,7 +196,9 @@ def kill(sweep_id, gpu, agent):
             window_name = f"gpu{gpu}_agent{agent}"
             window = session.find_where({"window_name": window_name})
             if window:
-                window.kill_window()
+                send_ctrl_c_window(window)
+                time.sleep(2)
+                window.kill()
                 click.echo(f"Killed agent {agent} for sweep {sweep_id} on GPU {gpu}")
             else:
                 raise click.ClickException(f"No agent {agent} found for sweep {sweep_id} on GPU {gpu}")
@@ -202,7 +208,9 @@ def kill(sweep_id, gpu, agent):
             killed = False
             for window in windows:
                 if window.name.startswith(f"gpu{gpu}_agent"):
-                    window.kill_window()
+                    send_ctrl_c_window(window)
+                    time.sleep(2)
+                    window.kill()
                     killed = True
             if killed:
                 click.echo(f"Killed all agents for sweep {sweep_id} on GPU {gpu}")
@@ -212,8 +220,10 @@ def kill(sweep_id, gpu, agent):
         # Check if this was the last window in the session
         remaining_windows = session.windows
         if len(remaining_windows) == 1: # default window
-            session.kill_session()
-            click.echo(f"Killed all remaining agents for sweep {sweep_id} (no more agents running)")
+            send_ctrl_c(session)
+            time.sleep(2)
+            session.kill()
+            click.echo(f"No more agents running for{sweep_id}")
             
     except Exception as e:
         logger.error(f"Failed to kill agent: {e}")
@@ -247,11 +257,10 @@ def status():
         sessions = server.sessions
 
         # Create a pretty table
-        click.echo("\n=== Sweeps and Agents Status ===\n")
+        click.echo("=== Sweeps and Agents Status ===\n")
         
         for name, sweep_id in sweeps:
-            click.echo(f"Sweep: {name}")
-            click.echo(f"ID: {sweep_id}")
+            click.echo(f"Sweep: {name} (ID: {sweep_id})")
             
             # Find running agents for this sweep
             running_agents = []
@@ -292,15 +301,17 @@ def status():
     
 @cli.command()
 @click.option('--force', is_flag=True, help='Force kill without confirmation')
-def kill_all(force):
-    """Kill all sweep agents.
+@click.option('--gpu', type=int, help='GPU number to kill agents on')
+def kill_all(force, gpu):
+    """Kill sweep agents.
     
     This command will:
     - Find all sweep sessions from your sweep log
-    - Kill all sweep agents in those sessions
+    - Kill sweep agents in those sessions (optionally on a specific GPU)
     - Clean up the tmux sessions
     
     Use the --force flag to skip confirmation.
+    Use --gpu to kill agents only on a specific GPU.
     """
     try:
         # Get all sweep IDs
@@ -313,10 +324,12 @@ def kill_all(force):
             click.echo("The following sweeps agents will be killed:")
             for sweep_id in sweep_ids:
                 click.echo(f"  - {sweep_id}")
+            if gpu is not None:
+                click.echo(f"Only agents on GPU {gpu} will be killed")
             if not click.confirm(f"\nThis will kill all agents for {len(sweep_ids)} sweeps. Continue?"):
                 return
 
-        # Kill all sessions
+        # Kill sessions
         server = libtmux.Server()
         killed_count = 0
         
@@ -325,20 +338,33 @@ def kill_all(force):
             sessions = server.find_where({"session_name": sweep_id})
             if sessions:
                 try:
-                    sessions.kill_session()
-                    killed_count += 1
-                    click.echo(f"Killed all agents for sweep {sweep_id}")
+                    # If GPU specified, only kill windows for that GPU
+                    if gpu is not None:
+                        for window in sessions.windows:
+                            if window.name.startswith(f'gpu{gpu}_'):
+                                send_ctrl_c_window(window)
+                                time.sleep(2)
+                                window.kill()
+                                killed_count += 1
+                    else:
+                        # Kill all windows in session
+                        send_ctrl_c(sessions)
+                        time.sleep(2)
+                        sessions.kill()
+                        killed_count += 1
+                    
+                    click.echo(f"Killed agents for sweep {sweep_id}")
                 except Exception as e:
                     logger.error(f"Failed to kill agents for sweep {sweep_id}: {e}")
                     continue
 
         if killed_count > 0:
-            click.echo(f"\nSuccessfully killed all agents for {killed_count} sweeps")
+            click.echo(f"\nSuccessfully killed {killed_count} agents")
         else:
             click.echo("\nNo running sweep agents found")
             
     except Exception as e:
-        logger.error(f"Failed to kill all sweeps: {e}")
+        logger.error(f"Failed to kill sweeps: {e}")
         raise click.ClickException(str(e))
     
 if __name__ == '__main__':

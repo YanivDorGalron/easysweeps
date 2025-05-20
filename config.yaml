@@ -1,10 +1,11 @@
-sweep_dir: "sweeps"
-agent_log_dir: "agent_logs"
-conda_env: "wandb_sweeps"
+sweep_dir: "sweeps" # location for sweep_template.yaml and sweep_variants.yaml
+agent_log_dir: "agent_logs" # location for agent logs
+conda_env: "wandb_sweeps"  # name of the conda environment to use
 entity: "yaniv_team"  # Replace with your wandb username
-project: "wandb_sweep_automation" # Replace with your wandb project name
+project: "wandb_sweep_automation" # Replace with your root project folder name
 conda_path: "~/anaconda3/etc/profile.d/conda.sh"  # Adjust if your conda path is different
 
 # Project copying configuration
 enable_project_copy: false  # Set to true to enable copying project for each agent
+# notice that if set to true - all created files will be created in the project copy directory
 project_copy_base_dir: "~/wandb_projects"  # Base directory where project copies will be created 

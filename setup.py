@@ -26,7 +26,7 @@ setup(
     entry_points={
         "console_scripts": [
             "easysweeps=easysweeps.cli:cli",
-            "es=easysweeps.cli:cli",
+            "ez=easysweeps.cli:cli",
         ],
     },
     author="Yaniv Galron",

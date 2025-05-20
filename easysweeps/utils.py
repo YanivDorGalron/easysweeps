@@ -4,6 +4,19 @@ import shutil
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
 from .config import config
+import psutil
+
+def send_ctrl_c_window(window):
+    pass
+    # for pane in window.panes:
+    #     print(f"Sending Ctrl+C to pane {pane.id} in window {window.name}")
+    #     pane.send_keys('\x03')  # Ctrl+C is ASCII code 3
+
+def send_ctrl_c(session):
+    pass
+    # Iterate through all panes and send Ctrl+C
+    # for window in session.windows:
+        # send_ctrl_c_window(window)
 
 def setup_logging(log_dir: Path = Path("logs"), level=logging.INFO):
     """Set up logging configuration"""
@@ -43,12 +56,13 @@ def setup_logging(log_dir: Path = Path("logs"), level=logging.INFO):
     logger = logging.getLogger('wandb_sweep_automation')
     return logger
 
-def copy_project_for_sweep(sweep_id: str, base_dir: Path) -> Path:
+def copy_project_for_sweep(sweep_id: str, base_dir: Path, force_recopy: bool = False) -> Path:
     """Copy the project directory to a new location for a specific sweep.
     
     Args:
         sweep_id: The sweep ID to use in the directory name
         base_dir: The base directory where the project copy will be created
+        force_recopy: If True, will remove existing directory before copying
         
     Returns:
         Path to the new project directory
@@ -64,8 +78,12 @@ def copy_project_for_sweep(sweep_id: str, base_dir: Path) -> Path:
     # Create the target directory with project name and sweep ID
     target_dir = base_dir / f"{project_name}_{sweep_id}"
     if target_dir.exists():
-        logger.warning(f"Target directory {target_dir} already exists, removing it")
-        shutil.rmtree(target_dir)
+        if force_recopy:
+            logger.info(f"Force recopy enabled, removing existing directory {target_dir}")
+            shutil.rmtree(target_dir)
+        else:
+            logger.warning(f"Target directory {target_dir} already exists, using it")
+            return target_dir
     
     # Get the current project directory (where the script is running from)
     current_dir = Path.cwd()
@@ -78,8 +96,8 @@ def copy_project_for_sweep(sweep_id: str, base_dir: Path) -> Path:
                            '*.pyo', '*.pyd', '.pytest_cache',
                            '*.egg-info', 'dist', 'build'
                        ))
-        logger.info(f"Successfully copied project to {target_dir}")
+        logger.debug(f"Successfully copied project to {target_dir}")
         return target_dir
     except Exception as e:
         logger.error(f"Failed to copy project: {e}")
-        raise 
+        raise

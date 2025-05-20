@@ -1,4 +1,4 @@
-# search_space.yaml
+# sweep_variants.yaml
 num_layers:
   - 2
   - 5
