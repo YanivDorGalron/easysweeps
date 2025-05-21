@@ -303,10 +303,9 @@ def status():
     
 @cli.command()
 @click.option('--force', is_flag=True, help='Force kill without confirmation')
-@click.option('--gpu', type=int, required=False, help='GPU number to kill agents on')
-@click.option('--kill-gpu', type=int, help='Kill all processes on a specific GPU using nvidia-smi')
-@click.option('--kill-server', is_flag=True, help='Kill all wandb processes on the server using pkill')
-def kill_all(force, gpu=None, kill_gpu=None, kill_server=False):
+@click.option('--gpu', type=str, help='Kill all processes on a specific GPU using nvidia-smi')
+@click.option('--server', is_flag=True, help='Kill all wandb processes on the server using pkill')
+def kill_all(force, gpu=None, server=False):
     """Kill sweep agents.
     
     This command will:
@@ -319,31 +318,50 @@ def kill_all(force, gpu=None, kill_gpu=None, kill_server=False):
     - Use --kill-all-server to kill all wandb processes on the server using pkill
     
     Use the --force flag to skip confirmation.
-    Use --gpu to kill agents only on a specific GPU.
     """
     try:
         # Handle kill-all-server option
-        if kill_server:
+        if server:
             if not force and not click.confirm("This will kill ALL wandb processes on the server. Continue?"):
                 return
             import subprocess
+            # Use pkill with -P to kill parent and child processes
             subprocess.run(['pkill', '-f', 'wandb'])
             click.echo("Killed all wandb processes on the server")
             return
         # Handle kill-all-gpu option
-        elif kill_gpu :
+        elif gpu:
             if not force and not click.confirm(f"This will kill ALL processes on GPU {gpu}. Continue?"):
                 return
             import subprocess
             # Get processes on the GPU
-            result = subprocess.run(['nvidia-smi', '-i', str(gpu), '--query-compute-apps=pid', '--format=csv,noheader'], 
+            result = subprocess.run(['nvidia-smi', '-i', gpu, '--query-compute-apps=pid', '--format=csv,noheader'], 
                                   capture_output=True, text=True)
             pids = [pid.strip() for pid in result.stdout.split('\n') if pid.strip()]
             
-            # Kill each process
+            # Kill each process and its children
             for pid in pids:
                 try:
+                    # Get child processes
+                    child_result = subprocess.run(['pgrep', '-P', pid], capture_output=True, text=True)
+                    child_pids = [cp.strip() for cp in child_result.stdout.split('\n') if cp.strip()]
+                    
+                    # Kill children first
+                    for child_pid in child_pids:
+                        subprocess.run(['kill', '-9', child_pid])
+                    
+                    # Kill the main process
                     subprocess.run(['kill', '-9', pid])
+                    
+                    # Try to kill parent process if it exists
+                    try:
+                        parent_pid = subprocess.run(['ps', '-o', 'ppid=', '-p', pid], 
+                                                  capture_output=True, text=True).stdout.strip()
+                        if parent_pid and parent_pid != '1':  # Don't kill init process
+                            subprocess.run(['kill', '-9', parent_pid])
+                    except Exception as e:
+                        logger.warning(f"Could not kill parent process for {pid}: {e}")
+                        
                 except Exception as e:
                     logger.error(f"Failed to kill process {pid}: {e}")
             click.echo(f"Killed all processes on GPU {gpu}")
@@ -363,41 +381,6 @@ def kill_all(force, gpu=None, kill_gpu=None, kill_server=False):
                 click.echo(f"Only agents on GPU {gpu} will be killed")
             if not click.confirm(f"\nThis will kill all agents for {len(sweep_ids)} sweeps. Continue?"):
                 return
-
-        # Kill sessions
-        server = libtmux.Server()
-        killed_count = 0
-        
-        for sweep_id in sweep_ids:
-            # Find all sessions that start with this sweep_id
-            sessions = server.find_where({"session_name": sweep_id})
-            if sessions:
-                try:
-                    # If GPU specified, only kill windows for that GPU
-                    if gpu is not None:
-                        for window in sessions.windows:
-                            if window.name.startswith(f'gpu{gpu}_'):
-                                send_ctrl_c_window(window)
-                                time.sleep(2)
-                                window.kill()
-                                killed_count += 1
-                    else:
-                        # Kill all windows in session
-                        send_ctrl_c(sessions)
-                        time.sleep(2)
-                        sessions.kill()
-                        killed_count += 1
-                    
-                    click.echo(f"Killed agents for sweep {sweep_id}")
-                except Exception as e:
-                    logger.error(f"Failed to kill agents for sweep {sweep_id}: {e}")
-                    continue
-
-        if killed_count > 0:
-            click.echo(f"\nSuccessfully killed {killed_count} agents")
-        else:
-            click.echo("\nNo running sweep agents found")
-            
     except Exception as e:
         logger.error(f"Failed to kill sweeps: {e}")
         raise click.ClickException(str(e))
