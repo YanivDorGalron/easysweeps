@@ -71,16 +71,18 @@ def sweep(sweep_dir, template, variants):
         raise click.ClickException(str(e))
 
 @cli.command()
-@click.option('--gpu-list', help='Comma-separated list of GPU indices to use (e.g., "0,1,2")')
-@click.option('--all-gpus', is_flag=True, help='Launch all sweeps on all GPUs instead of distributing one per GPU')
+@click.argument('sweep_id', required=False)
+@click.option('--gpu-list', required=True, help='Comma-separated list of GPU indices to use (e.g., "0,1,2")')
 @click.option('--agents-per-sweep', type=int, default=1, help='Number of agents to launch per sweep on each GPU')
 @click.option('--force-recopy', is_flag=True, help='Force recopy project directories even if they already exist')
-def agent(gpu_list, all_gpus, agents_per_sweep, force_recopy):
-    """Launch wandb sweep agents in tmux sessions.
+def agent(sweep_id, gpu_list, agents_per_sweep, force_recopy):
+    """Launch wandb sweep agents for a specific sweep ID on specified GPUs.
 
-    This command launches wandb sweep agents in tmux sessions, distributing them
-    across the specified GPUs. Each agent runs in its own tmux window for better
-    process management and monitoring.
+    This command launches wandb sweep agents in tmux sessions for a specific sweep ID,
+    distributing them across the specified GPUs. Each agent runs in its own tmux window
+    for better process management and monitoring.
+
+    If no sweep ID is provided, it will display all available sweeps.
 
     The command uses the following configuration from config.yaml:
     - conda_env: The conda environment to use
@@ -89,19 +91,32 @@ def agent(gpu_list, all_gpus, agents_per_sweep, force_recopy):
     - sweep_dir: Directory containing sweep configurations
 
     Example:
-        easysweeps agent --gpu-list 0,1 --all-gpus
-        easysweeps agent --gpu-list 0 --agents-per-sweep 3
-        easysweeps agent --gpu-list 0 --force-recopy  # Force recopy project directories
+        easysweeps agent abc123 --gpu-list 0,1,2  # Launch agents for sweep abc123 on GPUs 0,1,2
+        easysweeps agent abc123 --gpu-list 0 --agents-per-sweep 3  # Launch 3 agents on GPU 0
+        easysweeps agent --gpu-list 0,1  # Show all available sweeps
     """
     try:
         # Parse GPU list
-        if gpu_list:
-            try:
-                gpu_list = [int(gpu.strip()) for gpu in gpu_list.split(',')]
-            except ValueError:
-                raise click.ClickException("GPU list must be comma-separated integers (e.g., '0,1,2')")
-        else:
-            gpu_list = None
+        try:
+            gpu_list = [int(gpu.strip()) for gpu in gpu_list.split(',')]
+        except ValueError:
+            raise click.ClickException("GPU list must be comma-separated integers (e.g., '0,1,2')")
+
+        # If no sweep_id provided, show all available sweeps
+        if not sweep_id:
+            sweep_log = Path(config.get("sweep_dir")) / "created_sweeps.txt"
+            if not sweep_log.exists():
+                raise click.ClickException("No sweep log file found. Have you created any sweeps?")
+
+            click.echo("\nAvailable sweeps:")
+            click.echo("-" * 50)
+            with sweep_log.open() as f:
+                for line in f:
+                    if line.strip():
+                        name, sid = line.strip().split()
+                        click.echo(f"Name: {name}, ID: {sid}")
+                        click.echo("-" * 50)
+            return
 
         # Use provided values or defaults from config
         args = type('Args', (), {
@@ -110,13 +125,11 @@ def agent(gpu_list, all_gpus, agents_per_sweep, force_recopy):
             'gpu_list': gpu_list,
             'entity': config.get("entity"),
             'project': config.get("project"),
-            'all_gpus': all_gpus,
+            'all_gpus': True,  # Always use all specified GPUs
             'agents_per_sweep': agents_per_sweep,
-            'force_recopy': force_recopy
+            'force_recopy': force_recopy,
+            'sweep_id': sweep_id
         })
-
-        if not args.gpu_list:
-            raise click.ClickException("No GPUs specified. Use --gpu-list to specify GPUs (e.g., --gpu-list 0,1,2).")
 
         # Run the agent launch
         launch_agents.launch_agents(args)

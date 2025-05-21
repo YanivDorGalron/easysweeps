@@ -53,7 +53,7 @@ project_copy_base_dir: "~/wandb_projects"  # Base directory where project copies
 Create a template file (`sweeps/sweep_template.yaml`)
 This file will contain the sweep configuarion - parameters that distinguish different sweeps should be set to None:
 ```yaml
-name: "example_num_layers_{num_layers}"
+name: "example_{dataset}"
 method: "grid" # can be 
 metric:
   name: "loss"
@@ -63,14 +63,14 @@ parameters:
     values: [0.0001, 0.001, 0.01]
   weight_decay:
     values: [0.0, 0.0001, 0.001]
-  num_layers:
+  dataset:
     value: None # None values will be replaced with the value in sweep_varaints.yaml
 program: "train.py" 
 ```
 
 Create a variants file (`sweeps/sweep_variants.yaml`):
 ```yaml
-num_layers: [2, 4] # for each num_layers a new sweep will be created
+dataset: ['mnist', 'imagenet', 'coco'] # for each num_layers a new sweep will be created
 ```
 
 Create the sweeps:
@@ -80,19 +80,22 @@ ez sweep
 
 ### 2. Launch Agents
 
-Launch agents on specific GPUs:
+Launch agents for a specific sweep ID on specified GPUs:
 ```bash
-# Launch on GPUs 0 and 1
-ez agent --gpu-list 0,1 # This command distributes sweeps across GPUs in a round-robin fashion
+# Show all available sweeps
+ez agent --gpu-list 0,1
 
-# Launch multiple agents per sweep on GPU 0
-ez agent --gpu-list 0 --agents-per-sweep 3
+# Launch agents for sweep abc123 on GPUs 0 and 1
+ez agent abc123 --gpu-list 0,1
 
-# Launch all sweeps on all specified GPUs with multiple agents
-ez agent --gpu-list 0,1 --all-gpus --agents-per-sweep 2
+# Launch 3 agents per GPU for sweep abc123 on GPU 0
+ez agent abc123 --gpu-list 0 --agents-per-sweep 3
+
+# Launch agents with force recopy
+ez agent abc123 --gpu-list 0,1 --force-recopy
 ```
 
-The `--agents-per-sweep` option allows you to run multiple agents for each sweep on the same GPU.
+The `--agents-per-sweep` option allows you to run multiple agents for the same sweep on each GPU.
 Note: When running multiple agents on the same GPU, make sure your model and batch size can fit within the GPU memory.
 
 ### 3. Project Copying
@@ -136,34 +139,19 @@ Example directory structure:
 └── ...
 ```
 
-### 4. Manage Agents
+### 4. Manage GPUs and Server
 
-Kill an agent:
+Kill processes on specific GPUs or the entire server:
 ```bash
-# Kill specific agent
-ez kill sweep_id --gpu 0
-```
+# Kill all processes on a specific GPU
+ez kill-all --gpu 0
 
-The `kill` command features intelligent sweep ID autocompletion:
-- If you don't provide a sweep ID, you'll be prompted to enter one with tab completion
-- You can type a partial sweep ID and press tab to see matching options
-- If multiple sweeps match your input, you'll see an interactive selection dialog
-- The autocompletion is powered by prompt_toolkit and reads from your sweep log file
-
-Example interaction:
-```bash
-$ ez kill
-Enter partial sweep ID: abc<TAB>  # Shows all sweep IDs starting with "abc"
-Select sweep ID:                  # If multiple matches, shows interactive dialog
-```
-
-Kill all sweeps and agents:
-```bash
-# Interactive mode (asks for confirmation)
-ez kill-all
+# Kill all wandb processes on the server
+ez kill-all --server
 
 # Force kill without confirmation
-ez kill-all --force
+ez kill-all --gpu 0 --force
+ez kill-all --server --force
 ```
 
 Show status of all sweeps and agents:
