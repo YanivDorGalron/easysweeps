@@ -1,0 +1,22 @@
+# sweep_template.yaml
+name: "example_num_layers_{num_layers}"
+method: "grid"
+metric:
+  name: "loss"
+  goal: "minimize"
+parameters:
+  model_type:
+    values: ["default", "cnn", "resnet", "transformer"]
+  learning_rate:
+    values: [0.0001, 0.001, 0.01]
+  batch_size:
+    values: [16, 32, 64]
+  num_epochs:
+    values: [2000]
+  optimizer:
+    values: ["adam", "sgd"]
+  weight_decay:
+    values: [0.0, 0.0001, 0.001]
+  num_layers:
+    value: None
+program: "train.py"
