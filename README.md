@@ -70,7 +70,7 @@ program: "train.py"
 
 Create a variants file (`sweeps/sweep_variants.yaml`):
 ```yaml
-dataset: ['mnist', 'imagenet', 'coco'] # for each num_layers a new sweep will be created
+dataset: ['mnist', 'imagenet', 'coco'] # for each dataset a new sweep will be created
 ```
 
 Create the sweeps:
