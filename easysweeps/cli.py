@@ -1,3 +1,4 @@
+from typing_extensions import deprecated
 import click
 import time
 from pathlib import Path
@@ -140,7 +141,7 @@ def get_sweep_ids():
         logger.error(f"Failed to get sweep IDs: {e}")
         return []
 
-
+@deprecated("Use kill_all instead")
 @cli.command()
 @click.argument('sweep_id', required=False)
 @click.option('--gpu', type=int, required=True, help='GPU number to kill the agent from')
@@ -158,6 +159,7 @@ def kill(sweep_id, gpu, agent):
         easysweeps kill abc123 --gpu 0  # Kills all agents for sweep abc123 on GPU 0
         easysweeps kill abc123 --gpu 0 --agent 1  # Kills only agent 1 for sweep abc123 on GPU 0
     """
+    raise click.ClickException("This command is deprecated. Please use kill_all instead.")
     try:
         # Get all sweep IDs
         sweep_ids = get_sweep_ids()
@@ -301,8 +303,10 @@ def status():
     
 @cli.command()
 @click.option('--force', is_flag=True, help='Force kill without confirmation')
-@click.option('--gpu', type=int, help='GPU number to kill agents on')
-def kill_all(force, gpu):
+@click.option('--gpu', type=int, required=False, help='GPU number to kill agents on')
+@click.option('--kill-gpu', type=int, help='Kill all processes on a specific GPU using nvidia-smi')
+@click.option('--kill-server', is_flag=True, help='Kill all wandb processes on the server using pkill')
+def kill_all(force, gpu=None, kill_gpu=None, kill_server=False):
     """Kill sweep agents.
     
     This command will:
@@ -310,10 +314,41 @@ def kill_all(force, gpu):
     - Kill sweep agents in those sessions (optionally on a specific GPU)
     - Clean up the tmux sessions
     
+    Additional options:
+    - Use --kill-all-gpu to kill all processes on a specific GPU using nvidia-smi
+    - Use --kill-all-server to kill all wandb processes on the server using pkill
+    
     Use the --force flag to skip confirmation.
     Use --gpu to kill agents only on a specific GPU.
     """
     try:
+        # Handle kill-all-server option
+        if kill_server:
+            if not force and not click.confirm("This will kill ALL wandb processes on the server. Continue?"):
+                return
+            import subprocess
+            subprocess.run(['pkill', '-f', 'wandb'])
+            click.echo("Killed all wandb processes on the server")
+            return
+        # Handle kill-all-gpu option
+        elif kill_gpu :
+            if not force and not click.confirm(f"This will kill ALL processes on GPU {gpu}. Continue?"):
+                return
+            import subprocess
+            # Get processes on the GPU
+            result = subprocess.run(['nvidia-smi', '-i', str(gpu), '--query-compute-apps=pid', '--format=csv,noheader'], 
+                                  capture_output=True, text=True)
+            pids = [pid.strip() for pid in result.stdout.split('\n') if pid.strip()]
+            
+            # Kill each process
+            for pid in pids:
+                try:
+                    subprocess.run(['kill', '-9', pid])
+                except Exception as e:
+                    logger.error(f"Failed to kill process {pid}: {e}")
+            click.echo(f"Killed all processes on GPU {gpu}")
+            return
+
         # Get all sweep IDs
         sweep_ids = get_sweep_ids()
         if not sweep_ids:

@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
-
+import time
 def get_model():
     return nn.Sequential(
         nn.Linear(784, 128),
@@ -17,7 +17,7 @@ def train():
     config = wandb.config
     
     # Generate fake data
-    num_samples = 1000
+    num_samples = 10000
     fake_data = torch.randn(num_samples, 784)  # Random features
     fake_labels = torch.randint(0, 10, (num_samples,))  # Random labels 0-9
     

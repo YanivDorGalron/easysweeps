@@ -129,14 +129,15 @@ def launch_agents(args):
                     # Create the command
                     conda_path = config.get("conda_path")
                     cmd = (
-                        f"bash -c 'cd {project_dir} && "
-                        f"source {conda_path} && "
-                        f"conda activate {args.conda_env} && "
-                        f"mkdir -p {agent_log_dir} && "
-                        f"touch {log_file} && "
-                        f"CUDA_VISIBLE_DEVICES={gpu} PYTHONPATH=$PWD "
-                        f"wandb agent {args.entity}/{args.project}/{sweep_id} "
-                        f"2>&1 | tee -a {log_file}'"
+                        f'setsid bash -c \''
+                        f'trap "pkill -P $$" EXIT; '
+                        f'cd {project_dir} && '
+                        f'source {conda_path} && '
+                        f'conda activate {args.conda_env} && '
+                        f'mkdir -p {agent_log_dir} && '
+                        f'CUDA_VISIBLE_DEVICES={gpu} PYTHONPATH=$PWD '
+                        f'exec wandb agent {args.entity}/{args.project}/{sweep_id} '
+                        f'>> {log_file} 2>&1\''
                     )
 
                     # Send the command to the pane
