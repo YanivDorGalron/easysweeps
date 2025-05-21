@@ -1,6 +1,7 @@
 # EasySweeps
 
-A command-line tool I created for automating Weights & Biases sweeps across multiple GPUs. Made by [Yaniv Galron](https://github.com/YanivDorGalron) with the help of [Hadar Sinai](https://github.com/hadarsi320) and [Ron Tohar](https://github.com/rontohar1).
+A command-line tool created for automating Weights & Biases sweeps across multiple GPUs. 
+Made by [Yaniv Galron](https://github.com/YanivDorGalron) with the help of [Hadar Sinai](https://github.com/hadarsi320) and [Ron Tohar](https://github.com/rontohar1).
 
 ⭐ Starring the repository would be greatly appreciated! ⭐
 
