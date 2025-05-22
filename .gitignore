@@ -35,8 +35,6 @@ ENV/
 # Project specific
 wandb/
 data/
-sweeps/created_sweeps.txt
-sweeps/sweep_example*.yaml
 sweeps/sweep_example*.yaml
 agent_logs/
 *.log 

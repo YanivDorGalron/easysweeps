@@ -163,17 +163,19 @@ Example directory structure:
 
 ### 4. Manage GPUs and Server
 
-Kill processes on specific GPUs or the entire server:
+Kill sweep agents with flexible options:
 ```bash
-# Kill all processes on a specific GPU
-ez kill-all --gpu 0
+# Kill all sweeps and agents (with confirmation)
+ez kill --force
 
-# Kill all wandb processes on the server
-ez kill-all --server
+# Kill all agents on a specific GPU
+ez kill --gpu <gpu_id>
 
-# Force kill without confirmation
-ez kill-all --gpu 0 --force
-ez kill-all --server --force
+# Kill all agents for a specific sweep
+ez kill --sweep <sweep_id>
+
+# Kill agents for a specific sweep on a specific GPU
+ez kill --sweep <sweep_id> --gpu <gpu_id>
 ```
 
 Show status of all sweeps and agents:
@@ -183,7 +185,7 @@ ez status
 
 This command displays a comprehensive status of all sweeps and their agents:
 - All created sweeps from your sweep log
-- Currently running agents in tmux sessions and windows
+- Currently running agents in systemd scope units
 - GPU assignments for each agent
 - Status of each agent (running/stopped)
 

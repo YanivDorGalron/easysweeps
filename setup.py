@@ -11,10 +11,10 @@ setup(
     packages=find_packages(),
     install_requires=[
         "click>=8.0.0",
-        "libtmux>=0.15.0",
         "pyyaml>=6.0",
-        "wandb>=0.15.0",
+        "wandb>=0.12.0",
         "prompt_toolkit>=3.0.0",
+        "typing-extensions>=4.0.0",
     ],
     extras_require={
         "dev": [

@@ -3,7 +3,6 @@ import subprocess
 import argparse
 from pathlib import Path
 import click
-import libtmux
 import logging
 from .config import config
 from .utils import setup_logging, copy_project_for_sweep
@@ -13,13 +12,12 @@ logger = logging.getLogger(__name__)
 def launch_agents(args):
     """Launch wandb sweep agents for a specific sweep ID.
     
-    This function launches Weights & Biases sweep agents in tmux sessions for a specific sweep ID
+    This function launches Weights & Biases sweep agents using systemd scope units for a specific sweep ID
     across specified GPUs. It handles the following tasks:
     1. Sets up logging and creates necessary directories
     2. Verifies the sweep ID exists in the sweep log file
-    3. Creates tmux sessions and windows for the sweep
-    4. Launches wandb agents with proper GPU assignments
-    5. Logs all agent launches to a CSV file
+    3. Launches wandb agents with proper GPU assignments
+    4. Uses systemd scope units for process management
     
     Args:
         args: An argparse.Namespace object containing:
@@ -51,9 +49,6 @@ def launch_agents(args):
     agent_log_dir = Path(config.get("agent_log_dir"))
     agent_log_dir.mkdir(parents=True, exist_ok=True)
 
-    launch_summary_file = agent_log_dir / "agent_launches.csv"
-    launch_records = []
-
     # Find the sweep in the log file
     try:
         with sweep_log.open() as f:
@@ -73,46 +68,11 @@ def launch_agents(args):
         logger.error(f"Failed to read sweep log file: {e}")
         raise
 
-    server = libtmux.Server()
-    session = server.find_where({"session_name": sweep_id})
-
     # Launch agents on each specified GPU
     for gpu in args.gpu_list:
-        # Find the highest existing agent index for this sweep and GPU
-        highest_agent_idx = -1
-        if session:
-            for window in session.windows:
-                if window.name.startswith(f"gpu{gpu}_agent"):
-                    try:
-                        agent_num = int(window.name.split("_agent")[1])
-                        highest_agent_idx = max(highest_agent_idx, agent_num)
-                    except (ValueError, IndexError):
-                        continue
-
         # Launch multiple agents for this sweep on this GPU
         for agent_idx in range(args.agents_per_sweep):
-            # Calculate the actual agent index by adding to the highest existing index
-            actual_agent_idx = highest_agent_idx + 1 + agent_idx
-            log_file = agent_log_dir / f"{name}_gpu{gpu}_agent{actual_agent_idx}.log"
-            window_name = f"gpu{gpu}_agent{actual_agent_idx}"
-
-            # Get or create session for the sweep_id
-            if session is None:
-                click.echo(f"Creating first agent for sweep {sweep_id} on GPU {gpu}")
-                try:
-                    session = server.new_session(session_name=sweep_id, kill_session=True, attach=False)
-                    logger.debug(f"Created new session for sweep {sweep_id} on GPU {gpu}")
-                except Exception as e:
-                    logger.error(f"Failed to create new session: {e}")
-                    continue
-
-            # Create a new window for this agent
-            try:
-                window = session.new_window(window_name=window_name)
-                logger.debug(f"Created new window {window_name} for sweep {sweep_id}")
-            except Exception as e:
-                logger.error(f"Failed to create new window: {e}")
-                continue
+            log_file = agent_log_dir / f"{name}_gpu{gpu}_agent{agent_idx}.log"
 
             # Handle project copying if enabled
             project_dir = Path.cwd()
@@ -126,39 +86,24 @@ def launch_agents(args):
                     continue
 
             # Create the command
+            print(f"Creating command for {sweep_id}-{gpu}-{agent_idx}")
             conda_path = config.get("conda_path")
             cmd = (
-                f'setsid bash -c \''
-                f'trap "pkill -P $$" EXIT; '
+                f'systemd-run --user --scope --unit=wandb-agent-{sweep_id}-{gpu}-{agent_idx} bash -c "'
+                f'trap \'pkill -P $$\' EXIT; '
                 f'cd {project_dir} && '
                 f'source {conda_path} && '
                 f'conda activate {args.conda_env} && '
                 f'mkdir -p {agent_log_dir} && '
                 f'CUDA_VISIBLE_DEVICES={gpu} PYTHONPATH=$PWD '
-                f'exec wandb agent {args.entity}/{args.project}/{sweep_id} '
-                f'>> {log_file} 2>&1\''
+                f'exec wandb agent {args.entity}/{args.project}/{sweep_id}" '
+                f'>> {log_file} 2>&1'
             )
 
-            # Send the command to the pane
             try:
-                pane = window.attached_pane
-                pane.send_keys(cmd)
+                subprocess.Popen(cmd, shell=True)
                 click.echo(f"Launched agent for {sweep_id}:{name} on GPU {gpu}")
-                logger.debug(f"Launched agent for {name} in session '{sweep_id}', window '{window_name}' on GPU {gpu}")
-                launch_records.append([name, sweep_id, gpu, str(log_file)])
+                logger.debug(f"Launched agent for {name} on GPU {gpu}")
             except Exception as e:
-                logger.error(f"Failed to send command to pane: {e}")
+                logger.error(f"Failed to launch agent: {e}")
                 continue
-
-    # Write launch summary
-    try:
-        mode = "a" if launch_summary_file.exists() else "w"
-        with launch_summary_file.open(mode, newline="") as f:
-            writer = csv.writer(f)
-            if mode == "w":  # Only write header for new files
-                writer.writerow(["sweep_name", "sweep_id", "gpu", "log_file"])
-            writer.writerows(launch_records)
-        click.echo(f"Wrote launch summary to {launch_summary_file}")
-    except Exception as e:
-        logger.error(f"Failed to write launch summary: {e}")
-        raise
