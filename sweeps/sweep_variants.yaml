@@ -1,4 +1,2 @@
 # sweep_variants.yaml
-num_layers:
-  - 2
-  - 5
+dataset: ['mnist', 'imagenet', 'coco'] # for each dataset a new sweep will be created

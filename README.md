@@ -1,19 +1,41 @@
 # EasySweeps
 
-A command-line tool I created for automating Weights & Biases sweeps across multiple GPUs. Made by [Yaniv Galron](https://github.com/YanivDorGalron) with the help of [Hadar Sinai](https://github.com/hadarsi320) and [Ron Tohar](https://github.com/rontohar1).
+A command-line tool created for automating Weights & Biases sweeps across multiple GPUs. 
 
-⭐ Starring the repository would be greatly appreciated! ⭐
+## Motivation
 
-## Features
+While Weights & Biases (W&B) provides a robust platform for experiment tracking and sweep management, working at scale often exposes several pain points. **EasySweeps** was built to address the following common challenges:
 
-- Create multiple sweeps from a template and variants configuration
-- Launch sweep agents in tmux sessions
-- Kill specific sweep agents on specific GPUs
-- Create a copy of the code for each agent
-<!-- - Comprehensive logging and monitoring -->
-<!-- - Automatic GPU management and allocation -->
-<!-- - Intelligent sweep ID autocompletion -->
-<!-- - Support for both grid and random sweep methods -->
+1. **Repetitive setup**  
+   Launching the same sweep across different datasets or configurations often requires manual duplication and editing of sweep files.
+
+2. **Limited agent control**  
+   W&B does not provide built-in support for stopping a specific sweep agent or terminating all agents running on a particular GPU, making process management frustrating.
+
+3. **Code consistency issues**  
+   Agents always run the most recent version of the code. If the codebase changes during an ongoing sweep, new runs may behave inconsistently or break entirely.
+
+4. **Lack of automation tools**  
+   Managing multiple sweeps and agents across multiple GPUs typically involves writing custom scripts or performing manual, error-prone steps.
+
+**EasySweeps** simplifies and automates these tasks by:
+- Creating multiple sweeps from a template and a variants file
+- Launching and managing sweep agents across specific GPUs
+- Allowing sweep agents to run in isolated copies of the codebase
+- Providing easy-to-use commands for status checks and cleanup
+
+This makes large-scale sweep management faster, safer, and less error-prone.
+
+## 👨‍💻 Authors and Contributors
+
+Created by [Yaniv Galron](https://github.com/YanivDorGalron)  
+With contributions and support from [Hadar Sinai](https://github.com/hadarsi320) and [Ron Tohar](https://github.com/rontohar1)
+
+---
+
+## ⭐ Support
+
+If you find this project helpful, a ⭐ star would be greatly appreciated!
 
 ## Installation
 
@@ -23,7 +45,7 @@ pip install easysweeps
 
 ## Configuration
 
-Create a `config.yaml` file in your project root:
+Create a `ez_config.yaml` file in your project root:
 
 ```yaml
 sweep_dir: "sweeps"          # Directory for sweep configurations
@@ -42,7 +64,6 @@ project_copy_base_dir: "~/wandb_projects"  # Base directory where project copies
 
 - Python 3.7 or higher
 - Weights & Biases account and API key
-- tmux installed on your system
 - CUDA-capable GPUs (if using GPU acceleration)
 - Conda environment with required packages
 
@@ -70,7 +91,7 @@ program: "train.py"
 
 Create a variants file (`sweeps/sweep_variants.yaml`):
 ```yaml
-dataset: ['mnist', 'imagenet', 'coco'] # for each num_layers a new sweep will be created
+dataset: ['mnist', 'imagenet', 'coco'] # for each dataset a new sweep will be created
 ```
 
 Create the sweeps:
@@ -100,7 +121,7 @@ Note: When running multiple agents on the same GPU, make sure your model and bat
 
 ### 3. Project Copying
 
-When `enable_project_copy` is set to `true` in your `config.yaml`, EasySweeps will create a separate copy of your project for each sweep agent. This is useful when:
+When `enable_project_copy` is set to `true` in your `ez_config.yaml`, EasySweeps will create a separate copy of your project for each sweep agent. This is useful when:
 
 - You want to modify code for specific sweeps without affecting others
 - You need to maintain different versions of your code for different experiments
@@ -130,28 +151,30 @@ Example directory structure:
 ~/wandb_projects/
 ├── your_project_abc123/
 │   ├── train.py
-│   ├── config.yaml
+│   ├── ez_config.yaml
 │   └── ...
 ├── your_project_def456/
 │   ├── train.py
-│   ├── config.yaml
+│   ├── ez_config.yaml
 │   └── ...
 └── ...
 ```
 
 ### 4. Manage GPUs and Server
 
-Kill processes on specific GPUs or the entire server:
+Kill sweep agents with flexible options:
 ```bash
-# Kill all processes on a specific GPU
-ez kill-all --gpu 0
+# Kill all sweeps and agents (with confirmation)
+ez kill --force
 
-# Kill all wandb processes on the server
-ez kill-all --server
+# Kill all agents on a specific GPU
+ez kill --gpu <gpu_id>
 
-# Force kill without confirmation
-ez kill-all --gpu 0 --force
-ez kill-all --server --force
+# Kill all agents for a specific sweep
+ez kill --sweep <sweep_id>
+
+# Kill agents for a specific sweep on a specific GPU
+ez kill --sweep <sweep_id> --gpu <gpu_id>
 ```
 
 Show status of all sweeps and agents:
@@ -161,7 +184,7 @@ ez status
 
 This command displays a comprehensive status of all sweeps and their agents:
 - All created sweeps from your sweep log
-- Currently running agents in tmux sessions and windows
+- Currently running agents in systemd scope units
 - GPU assignments for each agent
 - Status of each agent (running/stopped)
 

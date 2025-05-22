@@ -23,7 +23,7 @@ def train():
     
     # Create dataset and dataloader
     train_dataset = TensorDataset(fake_data, fake_labels)
-    train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True)
     
     # Create model and optimizer
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -32,7 +32,7 @@ def train():
     criterion = nn.CrossEntropyLoss()
     
     # Training loop
-    for epoch in range(config.num_epochs):
+    for epoch in range(1000):
         for data, target in train_loader:
             data = data.to(device)
             target = target.to(device)

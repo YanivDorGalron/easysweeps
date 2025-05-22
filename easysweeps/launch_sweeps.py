@@ -3,6 +3,7 @@ import itertools
 import subprocess
 from copy import deepcopy
 from pathlib import Path
+import click
 import yaml
 import logging
 from .config import config
@@ -13,7 +14,6 @@ def create_sweeps(sweep_dir=None, template_file=None, variants_file=None):
     """Create wandb sweeps based on template and variants configuration"""
     # Use provided paths or defaults from config
     sweep_dir = Path(sweep_dir or config.get("sweep_dir"))
-    log_file = sweep_dir / "created_sweeps.txt"
     sweep_dir.mkdir(parents=True, exist_ok=True)
 
     # Load template and variants
@@ -51,7 +51,6 @@ def create_sweeps(sweep_dir=None, template_file=None, variants_file=None):
                 yaml.dump(sweep_config, f)
 
             # Create sweep without launching agent
-            logger.info(f"Creating sweep: {sweep_name} [{i + 1}/{total}]")
             out = subprocess.check_output(
                 ["wandb", "sweep", str(sweep_file)],
                 text=True,
@@ -59,18 +58,13 @@ def create_sweeps(sweep_dir=None, template_file=None, variants_file=None):
             )
             sweep_id = out.strip().split("/")[-1]
             created_sweeps.append((sweep_name, sweep_id))
-            logger.info(f"Created sweep {sweep_name} with ID {sweep_id}")
+            click.echo(f"Created sweep {sweep_name}:{sweep_id} [{i + 1}/{total}]")
 
         except Exception as e:
             import traceback
             logger.error(f"Failed to create sweep {i + 1}: {e}\n{traceback.format_exc()}")
             continue
 
-    # Write to log file
-    with open(log_file, "w") as f:
-        for name, sweep_id in created_sweeps:
-            f.write(f"{name} {sweep_id}\n")
-
-    logger.info(f"Created {len(created_sweeps)} sweeps successfully")
+    logger.debug(f"Created {len(created_sweeps)} sweeps successfully")
     return created_sweeps
 

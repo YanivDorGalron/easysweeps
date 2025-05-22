@@ -1,17 +1,11 @@
-from typing_extensions import deprecated
 import click
-import time
 from pathlib import Path
-import libtmux
-from . import launch_agents
-from . import launch_sweeps
-import yaml
 import logging
+
+from easysweeps import launch_agents, launch_sweeps
 from .config import config
-from .utils import setup_logging, send_ctrl_c, send_ctrl_c_window
-from prompt_toolkit import prompt
-from prompt_toolkit.completion import WordCompleter
-from prompt_toolkit.shortcuts import radiolist_dialog
+from .utils import setup_logging
+import subprocess
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +15,7 @@ def cli():
 
     This tool helps you create and manage multiple wandb sweeps efficiently by:
     - Creating multiple sweeps from a template and search space configuration
-    - Launching sweep agents in tmux sessions for better process management
+    - Launching sweep agents using systemd scope units for better process management
     - Managing GPU resources across multiple sweeps
     - Providing comprehensive logging and monitoring
 
@@ -32,7 +26,7 @@ def cli():
     setup_logging(log_dir)
 
 @cli.command()
-@click.option('--sweep-dir', type=click.Path(), help='Directory containing sweep configurations (default: from config.yaml)')
+@click.option('--sweep-dir', type=click.Path(), help='Directory containing sweep configurations (default: from ez_config.yaml)')
 @click.option('--template', type=click.Path(), help='Sweep template file (default: sweep_dir/sweep_template.yaml)')
 @click.option('--variants', type=click.Path(), help='Sweep variants configuration file (default: sweep_dir/sweep_variants.yaml)')
 def sweep(sweep_dir, template, variants):
@@ -64,6 +58,14 @@ def sweep(sweep_dir, template, variants):
             variants_file=variants
         )
         
+        # Create and update created_sweeps.txt
+        sweep_log = sweep_dir / "created_sweeps.txt"
+        sweep_log.parent.mkdir(parents=True, exist_ok=True)
+        
+        with sweep_log.open('a') as f:
+            for name, sweep_id in created_sweeps:
+                f.write(f"{name} {sweep_id}\n")
+        
         click.echo(f"Successfully created {len(created_sweeps)} sweeps")
         
     except Exception as e:
@@ -78,13 +80,13 @@ def sweep(sweep_dir, template, variants):
 def agent(sweep_id, gpu_list, agents_per_sweep, force_recopy):
     """Launch wandb sweep agents for a specific sweep ID on specified GPUs.
 
-    This command launches wandb sweep agents in tmux sessions for a specific sweep ID,
-    distributing them across the specified GPUs. Each agent runs in its own tmux window
+    This command launches wandb sweep agents as systemd scope units for a specific sweep ID,
+    distributing them across the specified GPUs. Each agent runs in its own systemd scope unit
     for better process management and monitoring.
 
     If no sweep ID is provided, it will display all available sweeps.
 
-    The command uses the following configuration from config.yaml:
+    The command uses the following configuration from ez_config.yaml:
     - conda_env: The conda environment to use
     - entity: The wandb entity name
     - project: The wandb project name
@@ -104,12 +106,13 @@ def agent(sweep_id, gpu_list, agents_per_sweep, force_recopy):
 
         # If no sweep_id provided, show all available sweeps
         if not sweep_id:
-            sweep_log = Path(config.get("sweep_dir")) / "created_sweeps.txt"
-            if not sweep_log.exists():
-                raise click.ClickException("No sweep log file found. Have you created any sweeps?")
+            sweep_ids = get_sweep_ids()
+            if not sweep_ids:
+                raise click.ClickException("No sweeps found. Have you created any sweeps?")
 
             click.echo("\nAvailable sweeps:")
             click.echo("-" * 50)
+            sweep_log = Path(config.get("sweep_dir")) / "created_sweeps.txt"
             with sweep_log.open() as f:
                 for line in f:
                     if line.strip():
@@ -140,263 +143,241 @@ def agent(sweep_id, gpu_list, agents_per_sweep, force_recopy):
         raise click.ClickException(str(e))
 
 def get_sweep_ids():
-    """Get list of sweep IDs from the log file"""
+    """Get list of sweep IDs from the log file.
+    
+    Returns:
+        list: List of sweep IDs from created_sweeps.txt. Returns empty list if file doesn't exist.
+    """
     try:
         sweep_log = Path(config.get("sweep_dir")) / "created_sweeps.txt"
+        
+        # Create the file if it doesn't exist
         if not sweep_log.exists():
+            sweep_log.parent.mkdir(parents=True, exist_ok=True)
+            sweep_log.touch()
+            logger.info(f"Created new sweep log file at {sweep_log}")
             return []
         
         with sweep_log.open() as f:
-            sweep_ids = [line.strip().split()[1] for line in f if line.strip()]
+            sweep_ids = []
+            for line in f:
+                if line.strip():
+                    try:
+                        name, sweep_id = line.strip().split()
+                        sweep_ids.append(sweep_id)
+                    except ValueError:
+                        logger.warning(f"Invalid line format in {sweep_log}: {line.strip()}")
+                        continue
         
         return sweep_ids
     except Exception as e:
         logger.error(f"Failed to get sweep IDs: {e}")
         return []
 
-@deprecated("Use kill_all instead")
-@cli.command()
-@click.argument('sweep_id', required=False)
-@click.option('--gpu', type=int, required=True, help='GPU number to kill the agent from')
-@click.option('--agent', type=int, help='Specific agent number to kill (if multiple agents per GPU)')
-def kill(sweep_id, gpu, agent):
-    """Kill a specific wandb sweep agent running on a specific GPU.
 
-    This command kills a wandb sweep agent that is running in a tmux session
-    on the specified GPU. The sweep_id should match the session name, and the
-    GPU number should match the window name (e.g., "gpu0_agent0").
-
-    If --agent is not specified, all agents for the sweep on the specified GPU will be killed.
-
-    Example:
-        easysweeps kill abc123 --gpu 0  # Kills all agents for sweep abc123 on GPU 0
-        easysweeps kill abc123 --gpu 0 --agent 1  # Kills only agent 1 for sweep abc123 on GPU 0
-    """
-    raise click.ClickException("This command is deprecated. Please use kill_all instead.")
-    try:
-        # Get all sweep IDs
-        sweep_ids = get_sweep_ids()
-        if not sweep_ids:
-            raise click.ClickException("No sweep IDs found in the log file")
-
-        # If no sweep_id provided or partial match, show selection dialog
-        if not sweep_id:
-            sweep_id = prompt('Enter partial sweep ID: ', completer=WordCompleter(sweep_ids))
-        
-        # Filter sweep IDs that match the input
-        matching_sweeps = [sid for sid in sweep_ids if sid.startswith(sweep_id)]
-        
-        if not matching_sweeps:
-            raise click.ClickException(f"No sweep IDs found matching '{sweep_id}'")
-        
-        # If multiple matches, show selection dialog
-        if len(matching_sweeps) > 1:
-            sweep_id = radiolist_dialog(
-                title="Select sweep ID",
-                text="Multiple matches found. Please select one:",
-                values=[(sid, sid) for sid in matching_sweeps]
-            ).run()
-            
-            if not sweep_id:  # User cancelled
-                return
-
-        # Now proceed with killing the selected sweep
-        server = libtmux.Server()
-        
-        session = server.find_where({"session_name": sweep_id})
-        if not session:
-            raise click.ClickException(f"No session found for sweep ID: {sweep_id}")
-
-        if agent is not None:
-            window_name = f"gpu{gpu}_agent{agent}"
-            window = session.find_where({"window_name": window_name})
-            if window:
-                send_ctrl_c_window(window)
-                time.sleep(2)
-                window.kill()
-                click.echo(f"Killed agent {agent} for sweep {sweep_id} on GPU {gpu}")
-            else:
-                raise click.ClickException(f"No agent {agent} found for sweep {sweep_id} on GPU {gpu}")
-        else:
-            # Kill all agents on this GPU
-            windows = session.windows
-            killed = False
-            for window in windows:
-                if window.name.startswith(f"gpu{gpu}_agent"):
-                    send_ctrl_c_window(window)
-                    time.sleep(2)
-                    window.kill()
-                    killed = True
-            if killed:
-                click.echo(f"Killed all agents for sweep {sweep_id} on GPU {gpu}")
-            else:
-                raise click.ClickException(f"No agents found for sweep {sweep_id} on GPU {gpu}")
-
-        # Check if this was the last window in the session
-        remaining_windows = session.windows
-        if len(remaining_windows) == 1: # default window
-            send_ctrl_c(session)
-            time.sleep(2)
-            session.kill()
-            click.echo(f"No more agents running for{sweep_id}")
-            
-    except Exception as e:
-        logger.error(f"Failed to kill agent: {e}")
-        raise click.ClickException(str(e))
-    
 @cli.command()
 def status():
     """Show status of all sweeps and running agents in a pretty format.
     
     This command displays:
-    - All created sweeps from the sweep log
-    - Currently running agents in tmux sessions and windows
+    - Currently running agents in systemd scope units
     - GPU assignments for each agent
     - Status of each agent (running/stopped)
+    - Sweeps that exist but have no running agents
     """
     try:
-        # Get all sweep IDs and names
+        # Get running scope units
+        result = subprocess.run(['systemctl', '--user', 'list-units', '--type=scope'], 
+                              capture_output=True, text=True)
+        running_units = result.stdout.split('\n')
+
+        # Parse all running units to get sweep IDs and their agents
+        active_sweeps = {}  # sweep_id -> {name: str, agents: list of (gpu, agent, status)}
+        
+        for unit in running_units:
+            if "wandb-agent-" in unit:
+                parts = unit.split()
+                if len(parts) > 0:
+                    unit_name = parts[0]
+                    try:
+                        # Extract sweep_id, GPU and agent numbers from unit name
+                        # Format: wandb-agent-{sweep_id}-{gpu}-{agent}.scope
+                        parts = unit_name.split('-')
+                        sweep_id = parts[2]
+                        gpu = parts[3]
+                        agent = parts[4].replace('.scope', '')
+                        status = "running" if "active" in unit else "stopped"
+                        
+                        if sweep_id not in active_sweeps:
+                            active_sweeps[sweep_id] = {
+                                'name': sweep_id,  # Default to ID if name not found
+                                'agents': []
+                            }
+                        active_sweeps[sweep_id]['agents'].append((gpu, agent, status))
+                    except (IndexError, ValueError):
+                        continue
+
+        # Get sweep names from created_sweeps.txt for inactive sweeps
         sweep_log = Path(config.get("sweep_dir")) / "created_sweeps.txt"
-        if not sweep_log.exists():
-            raise click.ClickException("No sweep log file found. Have you created any sweeps?")
-
-        sweeps = []
-        with sweep_log.open() as f:
-            for line in f:
-                if line.strip():
-                    name, sweep_id = line.strip().split()
-                    sweeps.append((name, sweep_id))
-
-        # Get running sessions
-        server = libtmux.Server()
-        sessions = server.sessions
+        if sweep_log.exists():
+            with sweep_log.open() as f:
+                for line in f:
+                    if line.strip():
+                        name, sweep_id = line.strip().split()
+                        if sweep_id not in active_sweeps:
+                            active_sweeps[sweep_id] = {
+                                'name': name,
+                                'agents': []
+                            }
+                        else:
+                            active_sweeps[sweep_id]['name'] = name
 
         # Create a pretty table
         click.echo("=== Sweeps and Agents Status ===\n")
         
-        for name, sweep_id in sweeps:
-            click.echo(f"Sweep: {name} (ID: {sweep_id})")
-            
-            # Find running agents for this sweep
-            running_agents = []
-            for session in sessions:
-                if session.name.startswith(sweep_id):
-                    # Get all windows in this session
-                    windows = session.windows
-                    for window in windows:
-                        if window.name.startswith('gpu'):
-                            # Parse GPU and agent numbers from window name
-                            parts = window.name.split('_')
-                            gpu = parts[0].replace('gpu', '')
-                            agent = parts[1].replace('agent', '') if len(parts) > 1 else '0'
-                            
-                            # Check if the window has a running process
-                            pane = window.attached_pane
-                            if pane and pane.pane_pid:
-                                running_agents.append((gpu, agent, "running"))
-                            else:
-                                running_agents.append((gpu, agent, "stopped"))
-            
-            if running_agents:
+        # First show sweeps with running agents
+        active_sweeps_with_agents = {sid: info for sid, info in active_sweeps.items() if info['agents']}
+        if active_sweeps_with_agents:
+            click.echo("Active Sweeps:")
+            click.echo("-" * 50)
+            for sweep_id, info in active_sweeps_with_agents.items():
+                click.echo(f"Sweep: {info['name']} (ID: {sweep_id})")
                 click.echo("Agents:")
-                for gpu, agent, status in sorted(running_agents, key=lambda x: (int(x[0]), int(x[1]))):
+                for gpu, agent, status in sorted(info['agents'], key=lambda x: (int(x[0]), int(x[1]))):
                     status_color = "green" if status == "running" else "red"
                     click.echo(f"  GPU {gpu}, Agent {agent}: {click.style(status, fg=status_color)}")
-            else:
-                click.echo("No agents currently running")
-            
-            click.echo("-" * 50)
+                click.echo("-" * 50)
 
-        if not sweeps:
-            click.echo("No sweeps found in the log file")
+        # Then show sweeps without agents
+        inactive_sweeps = {sid: info for sid, info in active_sweeps.items() if not info['agents']}
+        if inactive_sweeps:
+            click.echo("\nInactive Sweeps (no running agents):")
+            click.echo("-" * 50)
+            for sweep_id, info in inactive_sweeps.items():
+                click.echo(f"   {info['name']} (ID: {sweep_id})")
+
+        if not active_sweeps:
+            click.echo("No active sweeps found")
             
     except Exception as e:
         logger.error(f"Failed to show status: {e}")
         raise click.ClickException(str(e))
     
 @cli.command()
-@click.option('--force', is_flag=True, help='Force kill without confirmation')
-@click.option('--gpu', type=str, help='Kill all processes on a specific GPU using nvidia-smi')
-@click.option('--server', is_flag=True, help='Kill all wandb processes on the server using pkill')
-def kill_all(force, gpu=None, server=False):
-    """Kill sweep agents.
-    
-    This command will:
-    - Find all sweep sessions from your sweep log
-    - Kill sweep agents in those sessions (optionally on a specific GPU)
-    - Clean up the tmux sessions
-    
-    Additional options:
-    - Use --kill-all-gpu to kill all processes on a specific GPU using nvidia-smi
-    - Use --kill-all-server to kill all wandb processes on the server using pkill
-    
-    Use the --force flag to skip confirmation.
+@click.option('--force', is_flag=True, help='Force kill all sweeps and agents (requires confirmation)')
+@click.option('--gpu', type=str, help='GPU number to kill agents from (optional)')
+@click.option('--sweep', type=str, help='Sweep ID to kill agents for (optional)')
+def kill(force, gpu, sweep):
+    """Kill wandb sweep agents with flexible options.
+
+    This command kills wandb sweep agents that are running in systemd scope units.
+    You can specify:
+    - --force to kill all sweeps and agents (requires confirmation)
+    - --gpu to kill all agents on a specific GPU
+    - --sweep to kill all agents for a specific sweep
+    - --sweep and --gpu together to kill agents for a specific sweep on a specific GPU
+    - No options to see list of active sweeps
+
+    Examples:
+        easysweeps kill --force  # Kills all sweeps and agents (with confirmation)
+        easysweeps kill --gpu 0  # Kills all agents on GPU 0
+        easysweeps kill --sweep abc123  # Kills all agents for sweep abc123
+        easysweeps kill --sweep abc123 --gpu 0  # Kills agents for sweep abc123 on GPU 0
+        easysweeps kill  # Shows list of active sweeps
     """
     try:
-        # Handle kill-all-server option
-        if server:
-            if not force and not click.confirm("This will kill ALL wandb processes on the server. Continue?"):
+        # Handle force kill all
+        if force:
+            if not click.confirm("This will kill ALL sweeps and agents. Continue?"):
                 return
-            import subprocess
-            # Use pkill with -P to kill parent and child processes
-            subprocess.run(['pkill', '-f', 'wandb'])
-            click.echo("Killed all wandb processes on the server")
+            # Kill all wandb agent scope units
+            subprocess.run(['systemctl', '--user', '--no-pager', 'stop', 'wandb-agent-*.scope'])
+            click.echo("Killed all wandb agent units")
             return
-        # Handle kill-all-gpu option
-        elif gpu:
-            if not force and not click.confirm(f"This will kill ALL processes on GPU {gpu}. Continue?"):
-                return
-            import subprocess
-            # Get processes on the GPU
-            result = subprocess.run(['nvidia-smi', '-i', gpu, '--query-compute-apps=pid', '--format=csv,noheader'], 
-                                  capture_output=True, text=True)
-            pids = [pid.strip() for pid in result.stdout.split('\n') if pid.strip()]
-            
-            # Kill each process and its children
-            for pid in pids:
-                try:
-                    # Get child processes
-                    child_result = subprocess.run(['pgrep', '-P', pid], capture_output=True, text=True)
-                    child_pids = [cp.strip() for cp in child_result.stdout.split('\n') if cp.strip()]
-                    
-                    # Kill children first
-                    for child_pid in child_pids:
-                        subprocess.run(['kill', '-9', child_pid])
-                    
-                    # Kill the main process
-                    subprocess.run(['kill', '-9', pid])
-                    
-                    # Try to kill parent process if it exists
+
+        # Get running scope units
+        result = subprocess.run(['systemctl', '--user', 'list-units', '--type=scope'], 
+                              capture_output=True, text=True)
+        running_units = result.stdout.split('\n')
+
+        # Parse all running units to get sweep IDs
+        active_sweeps = set()
+        for unit in running_units:
+            if "wandb-agent-" in unit:
+                parts = unit.split()
+                if len(parts) > 0:
+                    unit_name = parts[0]
                     try:
-                        parent_pid = subprocess.run(['ps', '-o', 'ppid=', '-p', pid], 
-                                                  capture_output=True, text=True).stdout.strip()
-                        if parent_pid and parent_pid != '1':  # Don't kill init process
-                            subprocess.run(['kill', '-9', parent_pid])
-                    except Exception as e:
-                        logger.warning(f"Could not kill parent process for {pid}: {e}")
-                        
-                except Exception as e:
-                    logger.error(f"Failed to kill process {pid}: {e}")
-            click.echo(f"Killed all processes on GPU {gpu}")
+                        # Extract sweep_id from unit name
+                        # Format: wandb-agent-{sweep_id}-{gpu}-{agent}.scope
+                        sweep_id = unit_name.split('-')[2]
+                        active_sweeps.add(sweep_id)
+                    except (IndexError, ValueError):
+                        continue
+
+        # If no sweep or gpu provided, show all available sweeps
+        if not sweep and gpu is None:
+            if not active_sweeps:
+                click.echo("No active sweeps found")
+                return
+
+            click.echo("Active sweeps:")
+            click.echo("-" * 50)
+            for sweep_id in sorted(active_sweeps):
+                click.echo(f"Sweep ID: {sweep_id}")
             return
 
-        # Get all sweep IDs
-        sweep_ids = get_sweep_ids()
-        if not sweep_ids:
-            raise click.ClickException("No sweep IDs found in the log file")
-
-        # Confirm unless --force is used
-        if not force:
-            click.echo("The following sweeps agents will be killed:")
-            for sweep_id in sweep_ids:
-                click.echo(f"  - {sweep_id}")
+        # Construct the unit pattern based on provided options
+        if sweep:
+            unit_pattern = f"wandb-agent-{sweep}"
             if gpu is not None:
-                click.echo(f"Only agents on GPU {gpu} will be killed")
-            if not click.confirm(f"\nThis will kill all agents for {len(sweep_ids)} sweeps. Continue?"):
-                return
+                unit_pattern += f"-{gpu}"
+            else:
+                unit_pattern += "-*"
+            unit_pattern += "-*"  # For agent number
+        else:
+            # Only gpu specified - use a more precise pattern
+            # First get all running units
+            result = subprocess.run(['systemctl', '--user', 'list-units', '--type=scope'], 
+                                  capture_output=True, text=True)
+            running_units = result.stdout.split('\n')
+            
+            # Filter units that match the GPU
+            matching_units = []
+            for unit in running_units:
+                if "wandb-agent-" in unit:
+                    parts = unit.split()
+                    if len(parts) > 0:
+                        unit_name = parts[0]
+                        try:
+                            # Extract GPU from unit name
+                            # Format: wandb-agent-{sweep_id}-{gpu}-{agent}.scope
+                            unit_gpu = unit_name.split('-')[3]
+                            if unit_gpu == str(gpu):
+                                matching_units.append(unit_name)
+                        except (IndexError, ValueError):
+                            continue
+            
+            # Stop each matching unit individually
+            for unit in matching_units:
+                subprocess.run(['systemctl', '--user', '--no-pager', 'stop', unit])
+            
+            click.echo(f"Killed all agents on GPU {gpu}")
+            return
+
+        unit_pattern += ".scope"
+
+        # Stop the matching systemd units
+        subprocess.run(['systemctl', '--user', '--no-pager', 'stop', unit_pattern])
+        
+        # Construct appropriate message
+        if gpu is not None:
+            click.echo(f"Killed agents for {sweep} on GPU {gpu}")
+        else:
+            click.echo(f"Killed all agents for sweep {sweep}")
+            
     except Exception as e:
-        logger.error(f"Failed to kill sweeps: {e}")
+        logger.error(f"Failed to kill agents: {e}")
         raise click.ClickException(str(e))
-    
 if __name__ == '__main__':
     cli() 
