@@ -26,6 +26,16 @@ While Weights & Biases (W&B) provides a robust platform for experiment tracking 
 
 This makes large-scale sweep management faster, safer, and less error-prone.
 
+## 👨‍💻 Authors and Contributors
+
+Created by [Yaniv Galron](https://github.com/YanivDorGalron)  
+With contributions and support from [Hadar Sinai](https://github.com/hadarsi320) and [Ron Tohar](https://github.com/rontohar1)
+
+---
+
+## ⭐ Support
+
+If you find this project helpful, a ⭐ star would be greatly appreciated!
 
 ## Installation
 
