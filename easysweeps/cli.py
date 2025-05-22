@@ -1,16 +1,10 @@
-from typing_extensions import deprecated
 import click
-import time
 from pathlib import Path
-import yaml
 import logging
 
 from easysweeps import launch_agents, launch_sweeps
 from .config import config
 from .utils import setup_logging
-from prompt_toolkit import prompt
-from prompt_toolkit.completion import WordCompleter
-from prompt_toolkit.shortcuts import radiolist_dialog
 import subprocess
 
 logger = logging.getLogger(__name__)
@@ -64,6 +58,14 @@ def sweep(sweep_dir, template, variants):
             variants_file=variants
         )
         
+        # Create and update created_sweeps.txt
+        sweep_log = sweep_dir / "created_sweeps.txt"
+        sweep_log.parent.mkdir(parents=True, exist_ok=True)
+        
+        with sweep_log.open('a') as f:
+            for name, sweep_id in created_sweeps:
+                f.write(f"{name} {sweep_id}\n")
+        
         click.echo(f"Successfully created {len(created_sweeps)} sweeps")
         
     except Exception as e:
@@ -104,12 +106,13 @@ def agent(sweep_id, gpu_list, agents_per_sweep, force_recopy):
 
         # If no sweep_id provided, show all available sweeps
         if not sweep_id:
-            sweep_log = Path(config.get("sweep_dir")) / "created_sweeps.txt"
-            if not sweep_log.exists():
-                raise click.ClickException("No sweep log file found. Have you created any sweeps?")
+            sweep_ids = get_sweep_ids()
+            if not sweep_ids:
+                raise click.ClickException("No sweeps found. Have you created any sweeps?")
 
             click.echo("\nAvailable sweeps:")
             click.echo("-" * 50)
+            sweep_log = Path(config.get("sweep_dir")) / "created_sweeps.txt"
             with sweep_log.open() as f:
                 for line in f:
                     if line.strip():
@@ -140,14 +143,31 @@ def agent(sweep_id, gpu_list, agents_per_sweep, force_recopy):
         raise click.ClickException(str(e))
 
 def get_sweep_ids():
-    """Get list of sweep IDs from the log file"""
+    """Get list of sweep IDs from the log file.
+    
+    Returns:
+        list: List of sweep IDs from created_sweeps.txt. Returns empty list if file doesn't exist.
+    """
     try:
         sweep_log = Path(config.get("sweep_dir")) / "created_sweeps.txt"
+        
+        # Create the file if it doesn't exist
         if not sweep_log.exists():
+            sweep_log.parent.mkdir(parents=True, exist_ok=True)
+            sweep_log.touch()
+            logger.info(f"Created new sweep log file at {sweep_log}")
             return []
         
         with sweep_log.open() as f:
-            sweep_ids = [line.strip().split()[1] for line in f if line.strip()]
+            sweep_ids = []
+            for line in f:
+                if line.strip():
+                    try:
+                        name, sweep_id = line.strip().split()
+                        sweep_ids.append(sweep_id)
+                    except ValueError:
+                        logger.warning(f"Invalid line format in {sweep_log}: {line.strip()}")
+                        continue
         
         return sweep_ids
     except Exception as e:
@@ -231,14 +251,12 @@ def status():
         # Then show sweeps without agents
         inactive_sweeps = {sid: info for sid, info in active_sweeps.items() if not info['agents']}
         if inactive_sweeps:
-            click.echo("\nInactive Sweeps (no running agents):")
-            click.echo("-" * 50)
+            click.echo("Inactive Sweeps (no running agents):\n")
             for sweep_id, info in inactive_sweeps.items():
-                click.echo(f"Sweep: {info['name']} (ID: {sweep_id})")
-                click.echo("-" * 50)
+                click.echo(f"{info['name']} (ID: {sweep_id})")
 
         if not active_sweeps:
-            click.echo("No sweeps found")
+            click.echo("No active sweeps found")
             
     except Exception as e:
         logger.error(f"Failed to show status: {e}")
@@ -246,8 +264,8 @@ def status():
     
 @cli.command()
 @click.option('--force', is_flag=True, help='Force kill all sweeps and agents (requires confirmation)')
-@click.option('--gpu', type=int, help='GPU number to kill agents from')
-@click.option('--sweep', type=str, help='Sweep ID to kill agents for')
+@click.option('--gpu', type=int, help='GPU number to kill agents from (optional)')
+@click.option('--sweep', type=str, help='Sweep ID to kill agents for (optional)')
 def kill(force, gpu, sweep):
     """Kill wandb sweep agents with flexible options.
 
@@ -257,12 +275,14 @@ def kill(force, gpu, sweep):
     - --gpu to kill all agents on a specific GPU
     - --sweep to kill all agents for a specific sweep
     - --sweep and --gpu together to kill agents for a specific sweep on a specific GPU
+    - No options to see list of active sweeps
 
     Examples:
         easysweeps kill --force  # Kills all sweeps and agents (with confirmation)
         easysweeps kill --gpu 0  # Kills all agents on GPU 0
         easysweeps kill --sweep abc123  # Kills all agents for sweep abc123
         easysweeps kill --sweep abc123 --gpu 0  # Kills agents for sweep abc123 on GPU 0
+        easysweeps kill  # Shows list of active sweeps
     """
     try:
         # Handle force kill all
@@ -270,8 +290,8 @@ def kill(force, gpu, sweep):
             if not click.confirm("This will kill ALL sweeps and agents. Continue?"):
                 return
             # Kill all wandb agent scope units
-            subprocess.run(['systemctl', '--user', 'stop', '$(systemctl --user list-units --type=scope | grep wandb-agent | awk \'{print $1}\')'], shell=True)
-            click.echo("Killed all wandb agent scope units")
+            subprocess.run(['systemctl', '--user', '--no-pager', 'stop', 'wandb-agent-*.scope'])
+            click.echo("Killed all wandb agent units")
             return
 
         # Get running scope units
@@ -294,38 +314,40 @@ def kill(force, gpu, sweep):
                     except (IndexError, ValueError):
                         continue
 
-        # If no sweep provided, show all available sweeps
-        if not sweep:
+        # If no sweep or gpu provided, show all available sweeps
+        if not sweep and gpu is None:
             if not active_sweeps:
                 click.echo("No active sweeps found")
                 return
 
-            click.echo("\nActive sweeps:")
+            click.echo("Active sweeps:")
             click.echo("-" * 50)
             for sweep_id in sorted(active_sweeps):
                 click.echo(f"Sweep ID: {sweep_id}")
                 click.echo("-" * 50)
             return
 
-        # Verify the sweep_id exists in active sweeps
-        if sweep not in active_sweeps:
-            raise click.ClickException(f"No active sweep found with ID: {sweep}")
-
         # Construct the unit pattern based on provided options
-        unit_pattern = f"wandb-agent-{sweep}"
-        if gpu is not None:
-            unit_pattern += f"-{gpu}"
+        if sweep:
+            unit_pattern = f"wandb-agent-{sweep}"
+            if gpu is not None:
+                unit_pattern += f"-{gpu}"
+            else:
+                unit_pattern += "-*"
+            unit_pattern += "-*"  # For agent number
         else:
-            unit_pattern += "-*"
-        unit_pattern += "-*"  # For agent number
+            # Only gpu specified
+            unit_pattern = f"wandb-agent-*-{gpu}-*.scope"
+            sweep = "all sweeps"  # For message
+
         unit_pattern += ".scope"
 
         # Stop the matching systemd units
-        subprocess.run(['systemctl', '--user', 'stop', unit_pattern])
+        subprocess.run(['systemctl', '--user', '--no-pager', 'stop', unit_pattern])
         
         # Construct appropriate message
         if gpu is not None:
-            click.echo(f"Killed agents for sweep {sweep} on GPU {gpu}")
+            click.echo(f"Killed agents for {sweep} on GPU {gpu}")
         else:
             click.echo(f"Killed all agents for sweep {sweep}")
             

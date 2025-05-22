@@ -38,3 +38,4 @@ data/
 sweeps/sweep_example*.yaml
 agent_logs/
 *.log 
+*.txt

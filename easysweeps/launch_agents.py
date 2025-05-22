@@ -86,7 +86,6 @@ def launch_agents(args):
                     continue
 
             # Create the command
-            print(f"Creating command for {sweep_id}-{gpu}-{agent_idx}")
             conda_path = config.get("conda_path")
             cmd = (
                 f'systemd-run --user --scope --unit=wandb-agent-{sweep_id}-{gpu}-{agent_idx} bash -c "'
