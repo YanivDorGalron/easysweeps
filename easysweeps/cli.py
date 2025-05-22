@@ -32,7 +32,7 @@ def cli():
     setup_logging(log_dir)
 
 @cli.command()
-@click.option('--sweep-dir', type=click.Path(), help='Directory containing sweep configurations (default: from config.yaml)')
+@click.option('--sweep-dir', type=click.Path(), help='Directory containing sweep configurations (default: from ez_config.yaml)')
 @click.option('--template', type=click.Path(), help='Sweep template file (default: sweep_dir/sweep_template.yaml)')
 @click.option('--variants', type=click.Path(), help='Sweep variants configuration file (default: sweep_dir/sweep_variants.yaml)')
 def sweep(sweep_dir, template, variants):
@@ -84,7 +84,7 @@ def agent(sweep_id, gpu_list, agents_per_sweep, force_recopy):
 
     If no sweep ID is provided, it will display all available sweeps.
 
-    The command uses the following configuration from config.yaml:
+    The command uses the following configuration from ez_config.yaml:
     - conda_env: The conda environment to use
     - entity: The wandb entity name
     - project: The wandb project name

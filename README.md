@@ -45,7 +45,7 @@ pip install easysweeps
 
 ## Configuration
 
-Create a `config.yaml` file in your project root:
+Create a `ez_config.yaml` file in your project root:
 
 ```yaml
 sweep_dir: "sweeps"          # Directory for sweep configurations
@@ -122,7 +122,7 @@ Note: When running multiple agents on the same GPU, make sure your model and bat
 
 ### 3. Project Copying
 
-When `enable_project_copy` is set to `true` in your `config.yaml`, EasySweeps will create a separate copy of your project for each sweep agent. This is useful when:
+When `enable_project_copy` is set to `true` in your `ez_config.yaml`, EasySweeps will create a separate copy of your project for each sweep agent. This is useful when:
 
 - You want to modify code for specific sweeps without affecting others
 - You need to maintain different versions of your code for different experiments
@@ -152,11 +152,11 @@ Example directory structure:
 ~/wandb_projects/
 ├── your_project_abc123/
 │   ├── train.py
-│   ├── config.yaml
+│   ├── ez_config.yaml
 │   └── ...
 ├── your_project_def456/
 │   ├── train.py
-│   ├── config.yaml
+│   ├── ez_config.yaml
 │   └── ...
 └── ...
 ```

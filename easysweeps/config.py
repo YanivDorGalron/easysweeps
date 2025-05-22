@@ -8,7 +8,7 @@ class Config:
     """Configuration manager for wandb sweep automation"""
     
     def __init__(self, config_file: Path = None):
-        self.config_file = config_file or Path("config.yaml")
+        self.config_file = config_file or Path("ez_config.yaml")
         self.defaults = {
             "sweep_dir": "sweeps",
             "agent_log_dir": "agent_logs",
