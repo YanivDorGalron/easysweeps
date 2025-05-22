@@ -64,7 +64,6 @@ project_copy_base_dir: "~/wandb_projects"  # Base directory where project copies
 
 - Python 3.7 or higher
 - Weights & Biases account and API key
-- tmux installed on your system
 - CUDA-capable GPUs (if using GPU acceleration)
 - Conda environment with required packages
 

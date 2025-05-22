@@ -80,8 +80,8 @@ def sweep(sweep_dir, template, variants):
 def agent(sweep_id, gpu_list, agents_per_sweep, force_recopy):
     """Launch wandb sweep agents for a specific sweep ID on specified GPUs.
 
-    This command launches wandb sweep agents in tmux sessions for a specific sweep ID,
-    distributing them across the specified GPUs. Each agent runs in its own tmux window
+    This command launches wandb sweep agents as systemd scope units for a specific sweep ID,
+    distributing them across the specified GPUs. Each agent runs in its own systemd scope unit
     for better process management and monitoring.
 
     If no sweep ID is provided, it will display all available sweeps.
@@ -251,9 +251,10 @@ def status():
         # Then show sweeps without agents
         inactive_sweeps = {sid: info for sid, info in active_sweeps.items() if not info['agents']}
         if inactive_sweeps:
-            click.echo("Inactive Sweeps (no running agents):\n")
+            click.echo("\nInactive Sweeps (no running agents):")
+            click.echo("-" * 50)
             for sweep_id, info in inactive_sweeps.items():
-                click.echo(f"{info['name']} (ID: {sweep_id})")
+                click.echo(f"   {info['name']} (ID: {sweep_id})")
 
         if not active_sweeps:
             click.echo("No active sweeps found")
@@ -264,7 +265,7 @@ def status():
     
 @cli.command()
 @click.option('--force', is_flag=True, help='Force kill all sweeps and agents (requires confirmation)')
-@click.option('--gpu', type=int, help='GPU number to kill agents from (optional)')
+@click.option('--gpu', type=str, help='GPU number to kill agents from (optional)')
 @click.option('--sweep', type=str, help='Sweep ID to kill agents for (optional)')
 def kill(force, gpu, sweep):
     """Kill wandb sweep agents with flexible options.
@@ -324,7 +325,6 @@ def kill(force, gpu, sweep):
             click.echo("-" * 50)
             for sweep_id in sorted(active_sweeps):
                 click.echo(f"Sweep ID: {sweep_id}")
-                click.echo("-" * 50)
             return
 
         # Construct the unit pattern based on provided options
@@ -336,9 +336,34 @@ def kill(force, gpu, sweep):
                 unit_pattern += "-*"
             unit_pattern += "-*"  # For agent number
         else:
-            # Only gpu specified
-            unit_pattern = f"wandb-agent-*-{gpu}-*.scope"
-            sweep = "all sweeps"  # For message
+            # Only gpu specified - use a more precise pattern
+            # First get all running units
+            result = subprocess.run(['systemctl', '--user', 'list-units', '--type=scope'], 
+                                  capture_output=True, text=True)
+            running_units = result.stdout.split('\n')
+            
+            # Filter units that match the GPU
+            matching_units = []
+            for unit in running_units:
+                if "wandb-agent-" in unit:
+                    parts = unit.split()
+                    if len(parts) > 0:
+                        unit_name = parts[0]
+                        try:
+                            # Extract GPU from unit name
+                            # Format: wandb-agent-{sweep_id}-{gpu}-{agent}.scope
+                            unit_gpu = unit_name.split('-')[3]
+                            if unit_gpu == str(gpu):
+                                matching_units.append(unit_name)
+                        except (IndexError, ValueError):
+                            continue
+            
+            # Stop each matching unit individually
+            for unit in matching_units:
+                subprocess.run(['systemctl', '--user', '--no-pager', 'stop', unit])
+            
+            click.echo(f"Killed all agents on GPU {gpu}")
+            return
 
         unit_pattern += ".scope"
 
@@ -354,6 +379,5 @@ def kill(force, gpu, sweep):
     except Exception as e:
         logger.error(f"Failed to kill agents: {e}")
         raise click.ClickException(str(e))
-    
 if __name__ == '__main__':
     cli() 
