@@ -1,20 +1,31 @@
 # EasySweeps
 
 A command-line tool created for automating Weights & Biases sweeps across multiple GPUs. 
-Made by [Yaniv Galron](https://github.com/YanivDorGalron) with the help of [Hadar Sinai](https://github.com/hadarsi320) and [Ron Tohar](https://github.com/rontohar1).
 
-⭐ Starring the repository would be greatly appreciated! ⭐
+## Motivation
 
-## Features
+While Weights & Biases (W&B) provides a robust platform for experiment tracking and sweep management, working at scale often exposes several pain points. **EasySweeps** was built to address the following common challenges:
 
-- Create multiple sweeps from a template and variants configuration
-- Launch sweep agents in tmux sessions
-- Kill specific sweep agents on specific GPUs
-- Create a copy of the code for each agent
-<!-- - Comprehensive logging and monitoring -->
-<!-- - Automatic GPU management and allocation -->
-<!-- - Intelligent sweep ID autocompletion -->
-<!-- - Support for both grid and random sweep methods -->
+1. **Repetitive setup**  
+   Launching the same sweep across different datasets or configurations often requires manual duplication and editing of sweep files.
+
+2. **Limited agent control**  
+   W&B does not provide built-in support for stopping a specific sweep agent or terminating all agents running on a particular GPU, making process management frustrating.
+
+3. **Code consistency issues**  
+   Agents always run the most recent version of the code. If the codebase changes during an ongoing sweep, new runs may behave inconsistently or break entirely.
+
+4. **Lack of automation tools**  
+   Managing multiple sweeps and agents across multiple GPUs typically involves writing custom scripts or performing manual, error-prone steps.
+
+**EasySweeps** simplifies and automates these tasks by:
+- Creating multiple sweeps from a template and a variants file
+- Launching and managing sweep agents across specific GPUs
+- Allowing sweep agents to run in isolated copies of the codebase
+- Providing easy-to-use commands for status checks and cleanup
+
+This makes large-scale sweep management faster, safer, and less error-prone.
+
 
 ## Installation
 
