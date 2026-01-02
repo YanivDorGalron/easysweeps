@@ -1,0 +1,40 @@
+:root {
+  --md-primary-fg-color: #1e293b;
+  /* Professional Slate */
+  --md-primary-fg-color--light: #334155;
+  --md-primary-fg-color--dark: #0f172a;
+  --md-accent-fg-color: #3b82f6;
+  /* Trustworthy Blue */
+}
+
+/* Increase Logo Size */
+.md-logo img {
+  height: 48px !important;
+  width: auto !important;
+}
+
+.md-header__button.md-logo {
+  padding: 0.4rem !important;
+}
+
+/* Clean header (removed glassmorphism) */
+.md-header {
+  background-color: var(--md-primary-fg-color) !important;
+  color: white !important;
+}
+
+[data-md-color-scheme="slate"] .md-header {
+  background-color: #0f172a !important;
+}
+
+/* Smooth transitions */
+.md-nav__link,
+.md-content__button {
+  transition: all 0.2s ease-in-out;
+}
+
+/* Admonition improvements */
+.md-typeset .admonition {
+  border-radius: 6px;
+  border-left-width: 4px;
+}

@@ -1,0 +1,50 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[test]"
+    
+    - name: Run all tests (excluding integration tests)
+      run: |
+        # Run all tests in tests/ folder, excluding integration tests that require WandB API
+        # Integration tests are marked with @pytest.mark.integration
+        pytest tests/ -v --cov=easysweeps --cov-report=xml --cov-report=term -m "not integration"
+    
+    - name: Run integration tests (optional)
+      if: secrets.WANDB_API_KEY != ''
+      env:
+        WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+      run: |
+        # Run integration tests that require WandB API access
+        # Add WANDB_API_KEY to GitHub secrets to enable this step
+        pytest tests/test_live_workflow.py -v -m integration
+    
+    - name: Upload coverage to Codecov (optional)
+      if: matrix.python-version == '3.11'
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false
+

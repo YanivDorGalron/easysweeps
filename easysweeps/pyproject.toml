@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "easysweeps"
+version = "0.1.0"
+description = "A powerful CLI tool for automating Weights & Biases sweep creation and management"
+requires-python = ">=3.7"
+dependencies = [
+    "click",
+    "wandb",
+    "pyyaml",
+]
+
+[project.scripts]
+ez = "easysweeps.cli:cli"
+easysweeps = "easysweeps.cli:cli"
